@@ -15,8 +15,11 @@ export function formatTAP(result: RunResult): string {
         lines.push(`# Suite: ${suite.name}`);
         for (const scenario of suite.scenarios) {
             testNum++;
-            if (scenario.passed) {
-                lines.push(`ok ${testNum} - ${scenario.description}`);
+            if (scenario.skipped) {
+                lines.push(`ok ${testNum} - ${scenario.description} # SKIP`);
+            } else if (scenario.passed) {
+                const focusedTag = scenario.focused ? ' # FOCUSED' : '';
+                lines.push(`ok ${testNum} - ${scenario.description}${focusedTag}`);
             } else {
                 lines.push(`not ok ${testNum} - ${scenario.description}`);
                 const failedStep = scenario.steps.find(s => !s.passed);
@@ -38,10 +41,11 @@ export function formatTAP(result: RunResult): string {
     }
 
     lines.push(`1..${testNum}`);
-    lines.push(`# tests ${testNum}`);
-    lines.push(`# pass  ${result.totalPass}`);
-    lines.push(`# fail  ${result.totalFail}`);
-    lines.push(`# time  ${result.duration}ms`);
+    lines.push(`# tests   ${testNum}`);
+    lines.push(`# pass    ${result.totalPass}`);
+    lines.push(`# fail    ${result.totalFail}`);
+    lines.push(`# skipped ${result.totalSkipped}`);
+    lines.push(`# time    ${result.duration}ms`);
 
     return lines.join('\n');
 }

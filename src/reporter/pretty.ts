@@ -35,12 +35,17 @@ export function formatPretty(result: RunResult): string {
         lines.push('');
 
         for (const scenario of suite.scenarios) {
+            if (scenario.skipped) {
+                lines.push(`${c('yellow', '  ○')}  ${c('dim', scenario.description)}  ${c('gray', 'skipped')}`);
+                continue;
+            }
+            const focusMarker = scenario.focused ? c('yellow', ' ◆') : '';
             const icon   = scenario.passed ? c('green', '  ✓') : c('red', '  ✗');
             const desc   = scenario.passed
                 ? c('white', scenario.description)
                 : c('bold', c('red', scenario.description));
             const time   = c('gray', `(${scenario.duration}ms)`);
-            lines.push(`${icon}  ${desc}  ${time}`);
+            lines.push(`${icon}${focusMarker}  ${desc}  ${time}`);
 
             if (!scenario.passed || process.env['MIURA_VERBOSE']) {
                 for (const step of scenario.steps) {
@@ -59,11 +64,13 @@ export function formatPretty(result: RunResult): string {
 
     lines.push(bar);
     lines.push('');
+    const skipLabel = result.totalSkipped > 0 ? c('yellow', `  ${result.totalSkipped} skipped`) : '';
     lines.push([
         result.passed ? c('green', c('bold', '  PASS')) : c('red', c('bold', '  FAIL')),
         c('gray', `  ${passed}/${total} scenarios passed`),
+        skipLabel,
         c('gray', `  ${result.duration}ms total`),
-    ].join('  '));
+    ].filter(Boolean).join('  '));
     lines.push('');
 
     return lines.join('\n');

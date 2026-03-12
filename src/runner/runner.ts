@@ -67,6 +67,8 @@ export interface StepResult {
 export interface ScenarioResult {
     description: string;
     passed:      boolean;
+    skipped:     boolean;
+    focused:     boolean;
     steps:       StepResult[];
     duration:    number;
 }
@@ -79,12 +81,13 @@ export interface SuiteResult {
 }
 
 export interface RunResult {
-    passed:    boolean;
-    suites:    SuiteResult[];
-    total:     number;
-    totalPass: number;
-    totalFail: number;
-    duration:  number;
+    passed:       boolean;
+    suites:       SuiteResult[];
+    total:        number;
+    totalPass:    number;
+    totalFail:    number;
+    totalSkipped: number;
+    duration:     number;
 }
 
 // ── Executor ────────────────────────────────────────────────────────────────────
@@ -100,29 +103,37 @@ export class Executor {
     }
 
     async runFile(file: XTestFile, html?: string): Promise<RunResult> {
-        const start    = Date.now();
-        const suites:  SuiteResult[] = [];
-        let   total    = 0, pass = 0, fail = 0;
+        const start   = Date.now();
+        const suites: SuiteResult[] = [];
+
+        // Determine if any suite/scenario is focused — only run focused ones
+        const anyFocused =
+            file.suites.some(s => s.focused) ||
+            file.suites.some(s => s.scenarios.some(sc => sc.focused));
 
         for (const suite of file.suites) {
-            const result = await this._runSuite(suite, html);
+            const result = await this._runSuite(suite, html, anyFocused);
             suites.push(result);
-            total += result.scenarios.length;
-            pass  += result.scenarios.filter(s => s.passed).length;
-            fail  += result.scenarios.filter(s => !s.passed).length;
         }
 
+        const allScenarios = suites.flatMap(s => s.scenarios);
+        const total        = allScenarios.filter(s => !s.skipped).length;
+        const pass         = allScenarios.filter(s => s.passed  && !s.skipped).length;
+        const fail         = allScenarios.filter(s => !s.passed && !s.skipped).length;
+        const skipped      = allScenarios.filter(s => s.skipped).length;
+
         return {
-            passed:    fail === 0,
+            passed:       fail === 0,
             suites,
             total,
-            totalPass: pass,
-            totalFail: fail,
-            duration:  Date.now() - start,
+            totalPass:    pass,
+            totalFail:    fail,
+            totalSkipped: skipped,
+            duration:     Date.now() - start,
         };
     }
 
-    private async _runSuite(suite: SuiteNode, html?: string): Promise<SuiteResult> {
+    private async _runSuite(suite: SuiteNode, html?: string, anyFocused = false): Promise<SuiteResult> {
         const start = Date.now();
         if (html) await this._runner.mount(html);
 
@@ -133,8 +144,26 @@ export class Executor {
 
         const scenarios: ScenarioResult[] = [];
         for (const scenario of suite.scenarios) {
+            // Skip if: scenario is xscenario, suite is xsuite, or only-mode is active and this isn't focused
+            const shouldSkip =
+                scenario.skipped ||
+                suite.skipped ||
+                (anyFocused && !scenario.focused && !suite.focused);
+
+            if (shouldSkip) {
+                scenarios.push({
+                    description: scenario.description,
+                    passed:      true,
+                    skipped:     true,
+                    focused:     scenario.focused,
+                    steps:       [],
+                    duration:    0,
+                });
+                continue;
+            }
+
             // Re-mount between scenarios for isolation
-            if (html && scenarios.length > 0) await this._runner.mount(html);
+            if (html && scenarios.filter(s => !s.skipped).length > 0) await this._runner.mount(html);
             this._vars.clear();
             scenarios.push(await this._runScenario(scenario));
         }
@@ -146,7 +175,7 @@ export class Executor {
 
         return {
             name:      suite.name,
-            passed:    scenarios.every(s => s.passed),
+            passed:    scenarios.filter(s => !s.skipped).every(s => s.passed),
             scenarios,
             duration:  Date.now() - start,
         };
@@ -161,7 +190,7 @@ export class Executor {
             const r = await this._execStepSafe(step);
             steps.push(r);
             if (!r.passed) {
-                return { description: scenario.description, passed: false, steps, duration: Date.now() - start };
+                return { description: scenario.description, passed: false, skipped: false, focused: scenario.focused, steps, duration: Date.now() - start };
             }
         }
 
@@ -175,6 +204,8 @@ export class Executor {
         return {
             description: scenario.description,
             passed:      steps.every(s => s.passed),
+            skipped:     false,
+            focused:     scenario.focused,
             steps,
             duration:    Date.now() - start,
         };

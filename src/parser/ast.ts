@@ -103,6 +103,8 @@ export interface ScenarioNode {
     description: string;
     given:       Step[];
     steps:       Step[];
+    skipped:     boolean;
+    focused:     boolean;
     loc:         Loc;
 }
 
@@ -114,6 +116,8 @@ export interface SuiteNode {
     setup:     Step[];
     teardown:  Step[];
     scenarios: ScenarioNode[];
+    skipped:   boolean;
+    focused:   boolean;
     loc:       Loc;
 }
 

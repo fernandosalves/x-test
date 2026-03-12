@@ -1,5 +1,17 @@
 suite UserLogin
 
+  # xscenario — skipped entirely (like xit in Jest)
+  xscenario "Flaky network timeout — skip for now"
+    navigate to "http://slow-server"
+    wait for dashboard
+
+  # only scenario — run ONLY this when focused (like it.only in Jest)
+  # only scenario "Debug: wrong password"
+  #   type "ada@example.com" into username-input
+  #   type "wrong"           into password-input
+  #   click submit-button
+  #   check error-message is visible
+
   scenario "Successful login"
     type "ada@example.com" into username-input
     type "hunter2"         into password-input

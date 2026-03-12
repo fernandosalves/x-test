@@ -8,7 +8,8 @@
 // ── Token types ─────────────────────────────────────────────────────────────────
 
 export type TokenType =
-    | 'SUITE' | 'SCENARIO' | 'GIVEN' | 'SETUP' | 'TEARDOWN' | 'WITHIN'
+    | 'SUITE' | 'SCENARIO' | 'XSCENARIO' | 'XSUITE' | 'ONLY'
+    | 'GIVEN' | 'SETUP' | 'TEARDOWN' | 'WITHIN'
     | 'TYPE' | 'CLICK' | 'DOUBLE_CLICK' | 'RIGHT_CLICK'
     | 'SELECT' | 'CLEAR' | 'HOVER' | 'SCROLL' | 'WAIT'
     | 'NAVIGATE' | 'RELOAD' | 'PRESS' | 'STORE' | 'CHECK'
@@ -39,6 +40,9 @@ export interface Token {
 const KEYWORDS: Record<string, TokenType> = {
     suite:          'SUITE',
     scenario:       'SCENARIO',
+    xscenario:      'XSCENARIO',
+    xsuite:         'XSUITE',
+    only:           'ONLY',
     given:          'GIVEN',
     setup:          'SETUP',
     teardown:       'TEARDOWN',

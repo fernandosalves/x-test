@@ -38,10 +38,14 @@ export class Parser {
         while (!this._at('EOF')) {
             this._skipNewlines();
             if (this._at('EOF')) break;
-            if (this._at('SUITE')) {
-                suites.push(this._parseSuite());
+            if (this._at('SUITE'))      { suites.push(this._parseSuite(false, false)); }
+            else if (this._at('XSUITE')) { suites.push(this._parseSuite(true, false)); }
+            else if (this._at('ONLY'))   {
+                this._advance();
+                if (this._at('SUITE'))  { suites.push(this._parseSuite(false, true)); }
+                else this._advance();
             } else {
-                this._advance(); // skip unexpected tokens at file level
+                this._advance();
             }
         }
         const result: XTestFile = { suites };
@@ -51,9 +55,10 @@ export class Parser {
 
     // ── Suite ─────────────────────────────────────────────────────────────────
 
-    private _parseSuite(): SuiteNode {
+    private _parseSuite(skipped = false, focused = false): SuiteNode {
         const loc  = this._loc();
-        this._expect('SUITE');
+        if (skipped) this._expect('XSUITE');
+        else         this._expect('SUITE');
         const name = this._expectIdent('suite name');
 
         this._skipNewlines();
@@ -77,22 +82,27 @@ export class Parser {
                 this._expect('INDENT');
                 teardown = this._parseSteps();
                 this._tryExpect('DEDENT');
-            } else if (this._at('SCENARIO')) {
-                scenarios.push(this._parseScenario());
+            } else if (this._at('SCENARIO'))  { scenarios.push(this._parseScenario(false, false)); }
+            else if (this._at('XSCENARIO'))    { scenarios.push(this._parseScenario(true, false)); }
+            else if (this._at('ONLY')) {
+                this._advance();
+                if (this._at('SCENARIO'))      { scenarios.push(this._parseScenario(false, true)); }
+                else this._advance();
             } else {
                 this._advance();
             }
         }
 
         this._tryExpect('DEDENT');
-        return { kind: 'suite', name, setup, teardown, scenarios, loc };
+        return { kind: 'suite', name, setup, teardown, scenarios, skipped, focused, loc };
     }
 
     // ── Scenario ──────────────────────────────────────────────────────────────
 
-    private _parseScenario(): ScenarioNode {
+    private _parseScenario(skipped = false, focused = false): ScenarioNode {
         const loc = this._loc();
-        this._expect('SCENARIO');
+        if (skipped) this._expect('XSCENARIO');
+        else         this._expect('SCENARIO');
         const description = this._expectString('scenario description');
 
         this._skipNewlines();
@@ -112,7 +122,7 @@ export class Parser {
         steps = this._parseSteps();
         this._tryExpect('DEDENT');
 
-        return { kind: 'scenario', description, given, steps, loc };
+        return { kind: 'scenario', description, given, steps, skipped, focused, loc };
     }
 
     // ── Steps ─────────────────────────────────────────────────────────────────
