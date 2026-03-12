@@ -1,0 +1,37 @@
+suite UserLogin
+
+  scenario "Successful login"
+    type "ada@example.com" into username-input
+    type "hunter2"         into password-input
+    click submit-button
+    check error-message is absent
+    check dashboard is visible
+
+  scenario "Wrong password shows error"
+    type "ada@example.com" into username-input
+    type "wrong"           into password-input
+    click submit-button
+    check error-message is visible
+    check error-message contains "Invalid credentials"
+    check password-input has value ""
+
+  scenario "Empty form — both fields required"
+    click submit-button
+    check error-message is visible
+    check error-message contains "fill in"
+    check username-input has focus
+
+  scenario "Empty password only"
+    type "ada@example.com" into username-input
+    click submit-button
+    check error-message is visible
+
+  scenario "Tab order — username to password"
+    click username-input
+    press "Tab"
+    check password-input has focus
+
+  scenario "Store and compare typed value"
+    type "ada@example.com" into username-input
+    store username-input value as $typed
+    check $typed equals "ada@example.com"

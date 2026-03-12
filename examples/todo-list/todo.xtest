@@ -1,0 +1,42 @@
+suite TodoList
+
+  scenario "Empty state on first load"
+    check empty-message is visible
+    check todo-list     is present
+
+  scenario "Add a single item"
+    type "Buy milk" into new-item-input
+    click add-button
+    check todo-list      contains "Buy milk"
+    check empty-message  is absent
+    check item-count     contains "1"
+
+  scenario "Add multiple items"
+    type "Buy milk"       into new-item-input
+    click add-button
+    type "Read a book"    into new-item-input
+    click add-button
+    type "Write tests"    into new-item-input
+    click add-button
+    check item-count contains "3"
+
+  scenario "Input clears after adding"
+    type "Some task" into new-item-input
+    click add-button
+    check new-item-input has value ""
+
+  scenario "Filter — show done items"
+    type "Task one" into new-item-input
+    click add-button
+    type "Task two" into new-item-input
+    click add-button
+    click filter-done
+    check empty-message is visible
+
+  scenario "Store and assert item count text"
+    type "First" into new-item-input
+    click add-button
+    type "Second" into new-item-input
+    click add-button
+    store item-count text as $count
+    check $count contains "2"
