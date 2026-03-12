@@ -23,11 +23,10 @@ export type { SurfaceManifest, SurfaceElement, ResolutionStrategy, SurfaceDefini
 export { Resolver, ResolutionError } from './resolver/resolver.js';
 export type { ResolutionResult } from './resolver/resolver.js';
 
-export { JSDOMRunner } from './runner/jsdom-runner.js';
 export { Executor } from './runner/runner.js';
-export type {
-    MiuraRunner, RunResult, SuiteResult, ScenarioResult, StepResult,
-} from './runner/runner.js';
+export { JSDOMRunner } from './runner/jsdom-runner.js';
+export { PlaywrightRunner } from './runner/playwright-runner.js';
+export type { MiuraRunner, RunResult, SuiteResult, ScenarioResult, StepResult } from './runner/runner.js';
 
 export { formatTAP } from './reporter/tap.js';
 export { formatPretty } from './reporter/pretty.js';

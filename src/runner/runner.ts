@@ -50,6 +50,10 @@ export interface MiuraRunner {
     isEnabled(selector: string): Promise<boolean>;
     /** Check if a checkbox is checked. */
     isChecked(selector: string): Promise<boolean>;
+    /** Get a DOM property value (e.g. element.value, element.checked). */
+    getProp(selector: string, prop: string): Promise<string>;
+    /** Get an attribute value; returns null if absent. */
+    getAttr(selector: string, attr: string): Promise<string | null>;
     /** Push a scoping root — subsequent selectors are resolved within this element. */
     pushScope(selector: string): Promise<void>;
     /** Pop the most recently pushed scope. */
@@ -169,7 +173,22 @@ export class Executor {
             // Re-mount between scenarios for isolation
             if (html && scenarios.filter(s => !s.skipped).length > 0) await this._runner.mount(html);
             this._vars.clear();
-            scenarios.push(await this._runScenario(scenario));
+
+            // beforeEach
+            for (const step of suite.beforeEach) {
+                await this._execStep(step);
+            }
+
+            let scenarioResult: ScenarioResult;
+            try {
+                scenarioResult = await this._runScenario(scenario);
+            } finally {
+                // afterEach — always runs, even on failure
+                for (const step of suite.afterEach) {
+                    try { await this._execStep(step); } catch { /* best effort */ }
+                }
+            }
+            scenarios.push(scenarioResult!);
         }
 
         // Teardown
@@ -297,6 +316,18 @@ export class Executor {
                 if (a.state === 'unchecked') await check(!await this._runner.isChecked(r.selector));
                 if (a.state === 'focused')   await check(await this._runner.hasFocus(r.selector));
                 break;
+            case 'has-prop': {
+                const actual = await this._runner.getProp(r.selector, a.name);
+                await check(String(actual) === a.value);
+                break;
+            }
+            case 'has-attr': {
+                const attrVal = await this._runner.getAttr(r.selector, a.name);
+                if (a.state === 'present') { await check(attrVal !== null); break; }
+                if (a.state === 'absent')  { await check(attrVal === null); break; }
+                await check(attrVal === a.value);
+                break;
+            }
             case 'contains': {
                 const text = await this._runner.getText(r.selector, r.needsText);
                 await check(text.toLowerCase().includes((a.value as string).toLowerCase()));

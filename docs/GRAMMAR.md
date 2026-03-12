@@ -10,28 +10,42 @@ This document is the authoritative specification.
 ```peg
 File        ← Suite* EOF
 
-Suite       ← "suite" Ident NEWLINE
+Suite       ← SuiteKw Ident NEWLINE
               INDENT
                 Setup?
+                BeforeEach?
                 Scenario+
+                AfterEach?
                 Teardown?
               DEDENT
 
-Setup       ← "setup" NEWLINE INDENT Step+ DEDENT
-Teardown    ← "teardown" NEWLINE INDENT Step+ DEDENT
+SuiteKw     ← "suite"           -- normal
+            / "xsuite"           -- skipped (all scenarios skipped)
+            / "only" "suite"     -- focused (only this suite runs)
 
-Scenario    ← "scenario" String NEWLINE
+Setup       ← "setup"      NEWLINE INDENT Step+ DEDENT
+Teardown    ← "teardown"   NEWLINE INDENT Step+ DEDENT
+BeforeEach  ← ("beforeEach" / "before-each") NEWLINE INDENT Step+ DEDENT
+AfterEach   ← ("afterEach"  / "after-each")  NEWLINE INDENT Step+ DEDENT
+
+Scenario    ← ScenarioKw String NEWLINE
               INDENT
                 Given?
                 Step+
               DEDENT
+
+ScenarioKw  ← "scenario"          -- normal
+            / "xscenario"          -- skipped
+            / "only" "scenario"    -- focused
 
 Given       ← "given" NEWLINE INDENT GivenStep+ DEDENT
 GivenStep   ← "component" Ident "is" "loaded"
             / "fixture" String "is" "applied"
             / Step
 
-Step        ← ActionStep / AssertStep / StoreStep / PressStep / NavigateStep
+Step        ← ActionStep / AssertStep / StoreStep / PressStep / NavigateStep / WithinStep
+
+WithinStep  ← "within" ElementRef NEWLINE INDENT Step+ DEDENT
 
 ActionStep  ← TypeAction
             / ClickAction
@@ -69,6 +83,8 @@ AssertionOp ← "is" Visibility
             / "has" "value" String
             / "has" "focus"
             / "has" "class" String
+            / "has" "prop" String "equals" String
+            / "has" "attr" String ("equals" String / "is" ("present"/"absent"))
             / "matches" String
 
 Visibility  ← "visible" / "hidden" / "absent" / "present"
@@ -107,6 +123,10 @@ suite UserLogin
   setup
     navigate to "http://localhost:3000/login"
 
+  beforeEach
+    clear username-input
+    clear password-input
+
   scenario "Successful login"
     type "ada@example.com" into username-input
     type "hunter2"         into password-input
@@ -115,12 +135,18 @@ suite UserLogin
     check dashboard     is visible
 
   scenario "Wrong password"
-    type "ada@example.com" into username-input
-    type "wrong"           into password-input
-    click submit-button
+    within login-form
+      type "ada@example.com" into username-input
+      type "wrong"           into password-input
+      click submit-button
     check error-message is visible
     check error-message contains "Invalid credentials"
     check password-input has value ""
+
+  scenario "Input attributes"
+    check username-input has attr "required" is present
+    check username-input has prop "type" equals "email"
+    check submit-button  has attr "disabled" is absent
 
   scenario "Empty form — required validation"
     click submit-button
@@ -140,6 +166,14 @@ suite UserLogin
     clear username-input
     type "other@example.com" into username-input
     check $entered equals "ada@example.com"
+
+  # xscenario — skipped (flaky / WIP)
+  xscenario "Network timeout recovery"
+    navigate to "http://slow-server"
+    wait for dashboard
+
+  afterEach
+    reload page
 
   teardown
     navigate to "about:blank"
@@ -205,6 +239,18 @@ check <element> contains "text"
 check <element> has value "text"  # input/select current value
 check <element> has class "name"
 
+# DOM properties (element[prop])
+check <element> has prop "type"     equals "email"
+check <element> has prop "disabled" equals "false"
+check <element> has prop "tagName"  equals "BUTTON"
+
+# HTML attributes (getAttribute)
+check <element> has attr "required"           # presence (bare)
+check <element> has attr "required" is present
+check <element> has attr "disabled" is absent
+check <element> has attr "data-theme" equals "dark"
+check <element> has attr "aria-label" equals "Main panel"
+
 # Interaction state
 check <element> has focus
 check <element> is enabled
@@ -216,6 +262,10 @@ check <element> is readonly
 # Variable assertions
 check $var equals "text"
 check $var matches "regex pattern"
+
+# Any assertion can be negated
+check <element> not has prop "type" equals "password"
+check <element> is not visible
 ```
 
 ---
@@ -255,18 +305,89 @@ wait 500 ms
 
 ---
 
-## Scope (future)
+## Scope (`within`)
 
-For testing components that contain sub-components, steps can be scoped:
+Scope all nested steps to a root element. Subsequent element queries are
+rooted within that element's subtree — they will not match elements outside it.
 
 ```
-# Not yet implemented — reserved syntax
 within login-form
+  type "ada@example.com" into username-input
+  type "hunter2"         into password-input
   click submit-button
 
-within user-table row:3
-  check edit-button is enabled
+# Steps after the within block return to document scope
+check dashboard is visible
 ```
+
+Scopes can be nested:
+
+```
+within main-panel
+  within user-section
+    check avatar is visible
+    check name-label contains "Ada"
+```
+
+The `within` root element is resolved via the manifest like any other element.
+
+---
+
+## Skip and Focus
+
+Same semantics as `xit` / `it.only` in Jest:
+
+```
+xscenario "flaky test — WIP"
+  navigate to "http://slow-server"
+  wait for dashboard
+
+only scenario "debug this one"
+  click submit-button
+  check dashboard is visible
+
+xsuite SkipAll
+  scenario "a"
+    ...
+
+only suite FocusHere
+  scenario "b"
+    ...
+```
+
+- `xscenario` / `xsuite` — always skipped, reported as `# SKIP` in TAP
+- `only scenario` / `only suite` — triggers **focus mode**: only focused scenarios run; all others are auto-skipped for that file
+
+---
+
+## `beforeEach` / `afterEach`
+
+Per-scenario hooks declared inside a `suite`. `afterEach` always runs even
+if the scenario fails.
+
+```
+suite LoginForm
+
+  beforeEach
+    clear username-input
+    clear password-input
+
+  afterEach
+    reload page
+
+  scenario "first"
+    ...
+
+  scenario "second"
+    ...
+```
+
+| Hook | Runs | On failure? |
+|---|---|---|
+| `setup` | Once before all scenarios | — |
+| `beforeEach` | Before every non-skipped scenario | skipped if beforeEach throws |
+| `afterEach` | After every non-skipped scenario | **always** |
+| `teardown` | Once after all scenarios | best-effort |
 
 ---
 

@@ -149,6 +149,15 @@ export class JSDOMRunner implements MiuraRunner {
         return (this._find(selector) as HTMLInputElement).checked ?? false;
     }
 
+    async getProp(selector: string, prop: string): Promise<string> {
+        const el = this._find(selector) as any;
+        return String(el[prop] ?? '');
+    }
+
+    async getAttr(selector: string, attr: string): Promise<string | null> {
+        return this._find(selector).getAttribute(attr);
+    }
+
     async pushScope(selector: string): Promise<void> {
         const root = this._find(selector);
         this._scopeStack.push(root);

@@ -64,8 +64,10 @@ export class Parser {
         this._skipNewlines();
         this._expect('INDENT');
 
-        let setup:    Step[] = [];
-        let teardown: Step[] = [];
+        let setup:      Step[] = [];
+        let teardown:   Step[] = [];
+        let beforeEach: Step[] = [];
+        let afterEach:  Step[] = [];
         const scenarios: ScenarioNode[] = [];
 
         while (!this._at('DEDENT') && !this._at('EOF')) {
@@ -82,6 +84,18 @@ export class Parser {
                 this._expect('INDENT');
                 teardown = this._parseSteps();
                 this._tryExpect('DEDENT');
+            } else if (this._at('BEFORE_EACH')) {
+                this._advance();
+                this._skipNewlines();
+                this._expect('INDENT');
+                beforeEach = this._parseSteps();
+                this._tryExpect('DEDENT');
+            } else if (this._at('AFTER_EACH')) {
+                this._advance();
+                this._skipNewlines();
+                this._expect('INDENT');
+                afterEach = this._parseSteps();
+                this._tryExpect('DEDENT');
             } else if (this._at('SCENARIO'))  { scenarios.push(this._parseScenario(false, false)); }
             else if (this._at('XSCENARIO'))    { scenarios.push(this._parseScenario(true, false)); }
             else if (this._at('ONLY')) {
@@ -94,7 +108,7 @@ export class Parser {
         }
 
         this._tryExpect('DEDENT');
-        return { kind: 'suite', name, setup, teardown, scenarios, skipped, focused, loc };
+        return { kind: 'suite', name, setup, teardown, beforeEach, afterEach, scenarios, skipped, focused, loc };
     }
 
     // ── Scenario ──────────────────────────────────────────────────────────────
@@ -302,6 +316,33 @@ export class Parser {
                 this._advance();
                 const value = this._expectString('"class name"');
                 return { op: 'has-class', value };
+            }
+            if (this._at('PROP')) {
+                this._advance();
+                const name  = this._expectString('"prop name"');
+                this._expect('EQUALS');
+                const value = this._expectString('"prop value"');
+                return { op: 'has-prop', name, value };
+            }
+            if (this._at('ATTR')) {
+                this._advance();
+                const name = this._expectString('"attr name"');
+                // check X has attr "name" equals "value"
+                if (this._at('EQUALS')) {
+                    this._advance();
+                    const value = this._expectString('"attr value"');
+                    return { op: 'has-attr', name, value };
+                }
+                // check X has attr "name" is present / is absent
+                if (this._at('IS')) {
+                    this._advance();
+                    const state = this._at('ABSENT')
+                        ? (this._advance(), 'absent' as const)
+                        : (this._tryExpect('PRESENT'), 'present' as const);
+                    return { op: 'has-attr', name, state };
+                }
+                // bare: check X has attr "name"  →  presence check
+                return { op: 'has-attr', name, state: 'present' };
             }
         }
         if (this._at('MATCHES')) {

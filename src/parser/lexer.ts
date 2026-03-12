@@ -10,12 +10,14 @@
 export type TokenType =
     | 'SUITE' | 'SCENARIO' | 'XSCENARIO' | 'XSUITE' | 'ONLY'
     | 'GIVEN' | 'SETUP' | 'TEARDOWN' | 'WITHIN'
+    | 'BEFORE_EACH' | 'AFTER_EACH'
     | 'TYPE' | 'CLICK' | 'DOUBLE_CLICK' | 'RIGHT_CLICK'
     | 'SELECT' | 'CLEAR' | 'HOVER' | 'SCROLL' | 'WAIT'
     | 'NAVIGATE' | 'RELOAD' | 'PRESS' | 'STORE' | 'CHECK'
     | 'INTO' | 'IN' | 'FOR' | 'TO' | 'AS' | 'ON' | 'PAGE' | 'MS'
     | 'IS' | 'NOT' | 'CONTAINS' | 'HAS' | 'EQUALS' | 'MATCHES'
     | 'VALUE' | 'TEXT' | 'CLASS' | 'FOCUS' | 'FOCUS_KW'
+    | 'PROP' | 'ATTR'
     | 'VISIBLE' | 'HIDDEN' | 'ABSENT' | 'PRESENT'
     | 'ENABLED' | 'DISABLED' | 'CHECKED' | 'UNCHECKED' | 'READONLY'
     | 'DOUBLE_CLICK_KW' | 'RIGHT_CLICK_KW'
@@ -47,6 +49,10 @@ const KEYWORDS: Record<string, TokenType> = {
     setup:          'SETUP',
     teardown:       'TEARDOWN',
     within:         'WITHIN',
+    beforeeach:     'BEFORE_EACH',
+    'before-each':  'BEFORE_EACH',
+    aftereach:      'AFTER_EACH',
+    'after-each':   'AFTER_EACH',
     type:           'TYPE',
     click:          'CLICK',
     select:         'SELECT',
@@ -75,6 +81,8 @@ const KEYWORDS: Record<string, TokenType> = {
     matches:        'MATCHES',
     value:          'VALUE',
     text:           'TEXT',
+    prop:           'PROP',
+    attr:           'ATTR',
     class:          'CLASS',
     focus:          'FOCUS_KW',
     visible:        'VISIBLE',

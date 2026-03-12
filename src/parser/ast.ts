@@ -59,7 +59,9 @@ export type AssertionKind =
     | { op: 'has-value';     value: string }
     | { op: 'has-focus' }
     | { op: 'has-class';     value: string }
-    | { op: 'matches';       pattern: string };
+    | { op: 'matches';       pattern: string }
+    | { op: 'has-prop';      name: string; value: string }
+    | { op: 'has-attr';      name: string; value?: string; state?: 'present' | 'absent' };
 
 export interface AssertElementStep {
     kind:      'assert-element';
@@ -121,10 +123,12 @@ export interface ScenarioNode {
 // ── Suite ───────────────────────────────────────────────────────────────────────
 
 export interface SuiteNode {
-    kind:      'suite';
-    name:      string;
-    setup:     Step[];
-    teardown:  Step[];
+    kind:        'suite';
+    name:        string;
+    setup:       Step[];
+    teardown:    Step[];
+    beforeEach:  Step[];
+    afterEach:   Step[];
     scenarios: ScenarioNode[];
     skipped:   boolean;
     focused:   boolean;
