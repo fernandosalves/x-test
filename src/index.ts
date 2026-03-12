@@ -12,7 +12,7 @@ export { Lexer } from './parser/lexer.js';
 export { ParseError } from './parser/parser.js';
 export type {
     XTestFile, SuiteNode, ScenarioNode, Step,
-    ActionStep, AssertStep, StoreStep,
+    ActionStep, AssertStep, StoreStep, WithinStep,
     ElementRef, AssertionKind, Loc,
 } from './parser/ast.js';
 

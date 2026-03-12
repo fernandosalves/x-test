@@ -155,6 +155,7 @@ export class Parser {
             case 'PRESS':    return this._parsePressStep();
             case 'CHECK':    return this._parseCheckStep();
             case 'STORE':    return this._parseStoreStep();
+            case 'WITHIN':   return this._parseWithinStep();
             case 'IDENT':
                 // Handle "double-click" and "right-click" as IDENT tokens
                 if (tok.value.toLowerCase() === 'double-click') return this._parseClickStep('double-click');
@@ -346,6 +347,19 @@ export class Parser {
         this._expect('AS');
         const variable = this._advance().value; // VARIABLE token
         return { kind: 'store', element, capture, variable, loc } satisfies StoreStep;
+    }
+
+    // ── Within step ───────────────────────────────────────────────────────────
+
+    private _parseWithinStep(): Step {
+        const loc = this._loc();
+        this._expect('WITHIN');
+        const root = this._parseElementRef();
+        this._skipNewlines();
+        this._expect('INDENT');
+        const steps = this._parseSteps();
+        this._tryExpect('DEDENT');
+        return { kind: 'within', root, steps, loc };
     }
 
     // ── Element reference ─────────────────────────────────────────────────────

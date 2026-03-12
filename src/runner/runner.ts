@@ -5,7 +5,7 @@
  * The Executor ties together the Parser, Resolver, and Runner to run a full suite.
  */
 
-import type { XTestFile, SuiteNode, ScenarioNode, Step, ActionStep, ElementRef } from '../parser/ast.js';
+import type { XTestFile, SuiteNode, ScenarioNode, Step, ActionStep, ElementRef, WithinStep } from '../parser/ast.js';
 import type { SurfaceManifest } from '../manifest/types.js';
 import { Resolver, type ResolutionResult } from '../resolver/resolver.js';
 
@@ -50,6 +50,10 @@ export interface MiuraRunner {
     isEnabled(selector: string): Promise<boolean>;
     /** Check if a checkbox is checked. */
     isChecked(selector: string): Promise<boolean>;
+    /** Push a scoping root — subsequent selectors are resolved within this element. */
+    pushScope(selector: string): Promise<void>;
+    /** Pop the most recently pushed scope. */
+    popScope(): Promise<void>;
     /** Tear down the environment. */
     teardown(): Promise<void>;
 }
@@ -227,12 +231,25 @@ export class Executor {
         }
     }
 
+    private async _execWithin(step: WithinStep): Promise<void> {
+        const { selector } = this._resolver.resolve(step.root);
+        await this._runner.pushScope(selector);
+        try {
+            for (const s of step.steps) {
+                await this._execStep(s);
+            }
+        } finally {
+            await this._runner.popScope();
+        }
+    }
+
     private async _execStep(step: Step): Promise<void> {
         switch (step.kind) {
             case 'action': return this._execAction(step);
             case 'assert-element':  return this._execAssertElement(step);
             case 'assert-variable': return this._execAssertVariable(step);
             case 'store':           return this._execStore(step);
+            case 'within':          return this._execWithin(step);
         }
     }
 
@@ -335,6 +352,10 @@ export class Executor {
                 return `check $${s.variable} ${s.op} "${s.value}"`;
             case 'store':
                 return `store ${s.element.value} ${s.capture} as $${s.variable}`;
+            case 'within':
+                return `within ${s.root.value} (${s.steps.length} steps)`;
+            default:
+                return String((s as any).kind ?? 'unknown step');
         }
     }
 }

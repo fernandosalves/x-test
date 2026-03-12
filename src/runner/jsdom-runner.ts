@@ -9,10 +9,11 @@ import { JSDOM } from 'jsdom';
 import type { MiuraRunner } from './runner.js';
 
 export class JSDOMRunner implements MiuraRunner {
-    private _dom:      JSDOM | null = null;
-    private _document: Document | null = null;
-    private _window:   (Window & typeof globalThis) | null = null;
-    private _timeout:  number;
+    private _dom:        JSDOM | null = null;
+    private _document:   Document | null = null;
+    private _window:     (Window & typeof globalThis) | null = null;
+    private _timeout:    number;
+    private _scopeStack: Element[] = [];
 
     constructor(opts: { timeout?: number } = {}) {
         this._timeout = opts.timeout ?? 5000;
@@ -120,8 +121,8 @@ export class JSDOMRunner implements MiuraRunner {
     }
 
     async isVisible(selector: string): Promise<boolean> {
-        const el = this._document?.querySelector(selector);
-        if (!el) return false;
+        let el: Element | null;
+        try { el = this._find(selector); } catch { return false; }
         const htmlEl = el as HTMLElement;
         if (htmlEl.hidden) return false;
         const style = this._window?.getComputedStyle(htmlEl);
@@ -130,12 +131,13 @@ export class JSDOMRunner implements MiuraRunner {
     }
 
     async isPresent(selector: string): Promise<boolean> {
-        return !!this._document?.querySelector(selector);
+        try { this._find(selector); return true; } catch { return false; }
     }
 
     async hasFocus(selector: string): Promise<boolean> {
-        const el = this._document?.querySelector(selector);
-        return el !== null && el === this._document?.activeElement;
+        let el: Element | null;
+        try { el = this._find(selector); } catch { return false; }
+        return el === this._document?.activeElement;
     }
 
     async isEnabled(selector: string): Promise<boolean> {
@@ -147,7 +149,17 @@ export class JSDOMRunner implements MiuraRunner {
         return (this._find(selector) as HTMLInputElement).checked ?? false;
     }
 
+    async pushScope(selector: string): Promise<void> {
+        const root = this._find(selector);
+        this._scopeStack.push(root);
+    }
+
+    async popScope(): Promise<void> {
+        this._scopeStack.pop();
+    }
+
     async teardown(): Promise<void> {
+        this._scopeStack = [];
         this._dom?.window.close();
         this._dom      = null;
         this._document = null;
@@ -159,12 +171,18 @@ export class JSDOMRunner implements MiuraRunner {
     private _find(selector: string): Element {
         if (!this._document) throw new Error('[miura] Runner not mounted — call mount() first');
 
+        // Root is the active scope element (from within block) or the document
+        const root: Element | Document =
+            this._scopeStack.length > 0
+                ? this._scopeStack[this._scopeStack.length - 1]!
+                : this._document;
+
         // Multi-selector: try each comma-separated selector
         for (const sel of selector.split(',').map(s => s.trim())) {
-            const el = this._document.querySelector(sel);
+            const el = root.querySelector(sel);
             if (el) return el;
         }
-        throw new Error(`[miura] Element not found: "${selector}"`);
+        throw new Error(`[miura] Element not found: "${selector}"${this._scopeStack.length > 0 ? ` within scope` : ''}`);
     }
 
     private _tick(ms: number): Promise<void> {

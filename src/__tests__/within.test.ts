@@ -1,0 +1,139 @@
+import { describe, it, expect } from 'vitest';
+import { parseXTest } from '../parser/parser.js';
+
+// ── Parser tests ──────────────────────────────────────────────────────────────
+
+describe('Parser — within block', () => {
+    it('parses a within block with kind=within', () => {
+        const src = `suite S\n  scenario "t"\n    within login-form\n      click submit-button\n`;
+        const step = parseXTest(src).suites[0]!.scenarios[0]!.steps[0] as any;
+        expect(step.kind).toBe('within');
+        expect(step.root.value).toBe('login-form');
+        expect(step.steps).toHaveLength(1);
+        expect(step.steps[0].action).toBe('click');
+    });
+
+    it('parses multiple steps inside within', () => {
+        const src = `suite S\n  scenario "t"\n    within login-form\n      type "ada" into username-input\n      click submit-button\n      check error-message is absent\n`;
+        const step = parseXTest(src).suites[0]!.scenarios[0]!.steps[0] as any;
+        expect(step.steps).toHaveLength(3);
+    });
+
+    it('parses within with quoted element ref', () => {
+        const src = `suite S\n  scenario "t"\n    within "login form"\n      click submit-button\n`;
+        const step = parseXTest(src).suites[0]!.scenarios[0]!.steps[0] as any;
+        expect(step.root.kind).toBe('quoted');
+        expect(step.root.value).toBe('login form');
+    });
+
+    it('within can coexist with steps before and after', () => {
+        const src = `suite S\n  scenario "t"\n    click outside-btn\n    within login-form\n      click submit-button\n    check dashboard is visible\n`;
+        const steps = parseXTest(src).suites[0]!.scenarios[0]!.steps;
+        expect(steps).toHaveLength(3);
+        expect(steps[0]!.kind).toBe('action');
+        expect(steps[1]!.kind).toBe('within');
+        expect(steps[2]!.kind).toBe('assert-element');
+    });
+});
+
+// ── Runner tests ──────────────────────────────────────────────────────────────
+
+const FORM_HTML = `<!DOCTYPE html><html><body>
+  <div data-xtest="login-form" id="form">
+    <input data-xtest="username" type="text" />
+    <input data-xtest="password" type="password" />
+    <button data-xtest="submit-button" type="submit">Sign in</button>
+  </div>
+  <div data-xtest="other-section" id="other">
+    <button data-xtest="submit-button" id="other-btn">Other submit</button>
+  </div>
+</body></html>`;
+
+describe('JSDOMRunner — pushScope / popScope', () => {
+    it('scopes queries to the within element', async () => {
+        const { JSDOMRunner } = await import('../runner/jsdom-runner.js');
+        const runner = new JSDOMRunner();
+        await runner.mount(FORM_HTML);
+
+        await runner.pushScope('[data-xtest="login-form"]');
+        // Should find the submit-button inside login-form, not the one in other-section
+        const el = await runner.isPresent('[data-xtest="submit-button"]');
+        expect(el).toBe(true);
+        await runner.popScope();
+
+        await runner.teardown();
+    });
+
+    it('scope stack unwinds after popScope', async () => {
+        const { JSDOMRunner } = await import('../runner/jsdom-runner.js');
+        const runner = new JSDOMRunner();
+        await runner.mount(FORM_HTML);
+
+        await runner.pushScope('[data-xtest="login-form"]');
+        await runner.popScope();
+        // After pop, document-level query should work again
+        const present = await runner.isPresent('[data-xtest="other-section"]');
+        expect(present).toBe(true);
+
+        await runner.teardown();
+    });
+
+    it('throws when scoped element is absent from the scope root', async () => {
+        const { JSDOMRunner } = await import('../runner/jsdom-runner.js');
+        const runner = new JSDOMRunner();
+        await runner.mount(FORM_HTML);
+
+        await runner.pushScope('[data-xtest="login-form"]');
+        // other-section does NOT exist inside login-form
+        const present = await runner.isPresent('[data-xtest="other-section"]');
+        expect(present).toBe(false);
+        await runner.popScope();
+
+        await runner.teardown();
+    });
+});
+
+describe('Executor — within step end-to-end', () => {
+    it('runs within block and scopes all nested steps', async () => {
+        const { Executor } = await import('../runner/runner.js');
+        const { JSDOMRunner } = await import('../runner/jsdom-runner.js');
+
+        const src = `suite S\n  scenario "within"\n    within login-form\n      check username-input is present\n      check submit-button  is present\n`;
+        const ast      = parseXTest(src);
+        const runner   = new JSDOMRunner();
+        const executor = new Executor(runner, {
+            elements: {
+                'login-form':    { name: 'login-form',    strategy: { type: 'by-ref', value: 'login-form'    }, aliases: [] },
+                'username-input':{ name: 'username-input',strategy: { type: 'by-ref', value: 'username'      }, aliases: [] },
+                'submit-button': { name: 'submit-button', strategy: { type: 'by-ref', value: 'submit-button' }, aliases: [] },
+            },
+        });
+        const result = await executor.runFile(ast, FORM_HTML);
+        await runner.teardown();
+
+        expect(result.passed).toBe(true);
+        expect(result.suites[0]!.scenarios[0]!.passed).toBe(true);
+    });
+
+    it('within step label includes nested step count', async () => {
+        const { Executor } = await import('../runner/runner.js');
+        const { JSDOMRunner } = await import('../runner/jsdom-runner.js');
+
+        const src = `suite S\n  scenario "label"\n    within login-form\n      check username-input is present\n      click submit-button\n`;
+        const ast      = parseXTest(src);
+        const runner   = new JSDOMRunner();
+        const executor = new Executor(runner, {
+            elements: {
+                'login-form':    { name: 'login-form',    strategy: { type: 'by-ref', value: 'login-form'    }, aliases: [] },
+                'username-input':{ name: 'username-input',strategy: { type: 'by-ref', value: 'username'      }, aliases: [] },
+                'submit-button': { name: 'submit-button', strategy: { type: 'by-ref', value: 'submit-button' }, aliases: [] },
+            },
+        });
+        const result = await executor.runFile(ast, FORM_HTML);
+        await runner.teardown();
+
+        const stepResult = result.suites[0]!.scenarios[0]!.steps[0]!;
+        expect(stepResult.step).toContain('within');
+        expect(stepResult.step).toContain('2 steps');
+    });
+});

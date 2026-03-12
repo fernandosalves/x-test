@@ -89,12 +89,22 @@ export interface StoreStep {
     loc:      Loc;
 }
 
+// ── Within ─────────────────────────────────────────────────────────────────────
+
+export interface WithinStep {
+    kind:  'within';
+    root:  ElementRef;
+    steps: Step[];
+    loc:   Loc;
+}
+
 // ── Union step type ─────────────────────────────────────────────────────────────
 
 export type Step =
     | (ActionStep & { kind: 'action' })
     | AssertStep
-    | StoreStep;
+    | StoreStep
+    | WithinStep;
 
 // ── Scenario ────────────────────────────────────────────────────────────────────
 
