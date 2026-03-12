@@ -15,6 +15,7 @@ export type TokenType =
     | 'SELECT' | 'CLEAR' | 'HOVER' | 'SCROLL' | 'WAIT'
     | 'NAVIGATE' | 'RELOAD' | 'PRESS' | 'STORE' | 'CHECK'
     | 'COMPONENT' | 'LOADED' | 'FIXTURE' | 'APPLIED'
+    | 'SPY' | 'REGISTER' | 'WAS' | 'CALLED' | 'RETURNED_KW' | 'TIMES' | 'ONCE' | 'WITH_KW' | 'NEVER_KW' | 'RETURNING' | 'LAST'
     | 'INTO' | 'IN' | 'FOR' | 'TO' | 'AS' | 'ON' | 'PAGE' | 'MS'
     | 'IS' | 'NOT' | 'CONTAINS' | 'HAS' | 'EQUALS' | 'MATCHES'
     | 'VALUE' | 'TEXT' | 'CLASS' | 'FOCUS' | 'FOCUS_KW'
@@ -89,6 +90,17 @@ const KEYWORDS: Record<string, TokenType> = {
     loaded:         'LOADED',
     fixture:        'FIXTURE',
     applied:        'APPLIED',
+    spy:            'SPY',
+    register:       'REGISTER',
+    was:            'WAS',
+    called:         'CALLED',
+    returned:       'RETURNED_KW',
+    returning:      'RETURNING',
+    times:          'TIMES',
+    once:           'ONCE',
+    with:           'WITH_KW',
+    never:          'NEVER_KW',
+    last:           'LAST',
     class:          'CLASS',
     focus:          'FOCUS_KW',
     focused:        'FOCUS_KW',

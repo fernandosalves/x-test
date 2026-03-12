@@ -74,6 +74,16 @@ ReloadAction← "reload" "page"
 AssertStep  ← "check" ElementRef Assertion
             / "check" Variable "equals" String
             / "check" Variable "matches" String
+            / "check" "spy" String SpyAssertion
+
+SpyStep     ← "register" "spy" String ("returning" String)?
+
+SpyAssertion← "was" "called"
+            / "was" ("not" / "never") "called"
+            / "was" "called" "once"
+            / "was" "called" Number "times"
+            / "was" "called" "with" String+
+            / "last" "returned" String
 
 Assertion   ← Negation? AssertionOp
 
@@ -96,6 +106,8 @@ InputState  ← "enabled" / "disabled" / "checked" / "unchecked" / "readonly" / 
 
 StoreStep   ← "store" ElementRef "text" "as" Variable
             / "store" ElementRef "value" "as" Variable
+
+Step        ← ActionStep / AssertStep / StoreStep / SpyStep / PressStep / NavigateStep / WithinStep
 
 PressStep   ← "press" Key
 Key         ← String      -- "Enter", "Tab", "Escape", "ArrowDown" etc.
@@ -276,6 +288,54 @@ check <element> has count 0      # assert no matches
 check <element> not has prop "type" equals "password"
 check <element> not has count 5
 check <element> is not visible
+```
+
+---
+
+## Spy Assertions
+
+Spies are named functions injected into `window` that record every call. Register
+them before the action that triggers them, then assert on the recorded calls.
+
+```
+# Register (as a regular step or in given/beforeEach)
+register spy "onSubmit"
+register spy "fetchUser" returning "{ id: 1 }"
+
+# Was called at all
+check spy "onSubmit" was called
+check spy "onSubmit" was not called
+check spy "onSubmit" was never called    # alias for "was not called"
+
+# Exact call count
+check spy "onSubmit" was called once
+check spy "onSubmit" was called 3 times
+
+# Arguments (checks at least one call matched ALL listed args in order)
+check spy "onSubmit" was called with "ada@example.com"
+check spy "onSubmit" was called with "ada@example.com" "hunter2"
+
+# Return value of most recent call
+check spy "fetchUser" last returned "{ id: 1 }"
+```
+
+**How it works:**
+- `register spy "name"` attaches a function to `window.name` in the test environment.
+- Any inline HTML handler `onclick="onSubmit(value)"` or component callback
+  that calls `window.name(...)` will be recorded.
+- Spy call records are **automatically reset between scenarios** for isolation.
+- An optional `returning "value"` makes the spy return that string when called.
+
+**Example:**
+
+```
+suite LoginForm
+  scenario "submits with correct email"
+    register spy "onSubmit"
+    type "ada@example.com" into email-field
+    click submit-button
+    check spy "onSubmit" was called once
+    check spy "onSubmit" was called with "ada@example.com"
 ```
 
 ---

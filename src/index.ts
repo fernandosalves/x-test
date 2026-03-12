@@ -14,6 +14,7 @@ export type {
     XTestFile, SuiteNode, ScenarioNode, Step,
     ActionStep, AssertStep, StoreStep, WithinStep,
     LoadComponentStep, ApplyFixtureStep, FocusAction,
+    RegisterSpyStep, AssertSpyStep, SpyCall, SpyAssertionKind,
     ElementRef, AssertionKind, Loc,
 } from './parser/ast.js';
 

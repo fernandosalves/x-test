@@ -108,6 +108,34 @@ export interface ApplyFixtureStep {
     loc:       Loc;
 }
 
+// ── Spy ─────────────────────────────────────────────────────────────────────────
+
+export interface SpyCall {
+    args:        string[];
+    returnValue: string | undefined;
+}
+
+export type SpyAssertionKind =
+    | { op: 'was-called' }
+    | { op: 'was-not-called' }
+    | { op: 'was-called-times'; count: number }
+    | { op: 'was-called-with';  args: string[] }
+    | { op: 'last-returned';    value: string };
+
+export interface RegisterSpyStep {
+    kind:        'register-spy';
+    name:        string;
+    returnValue: string | undefined;
+    loc:         Loc;
+}
+
+export interface AssertSpyStep {
+    kind:      'assert-spy';
+    spyName:   string;
+    assertion: SpyAssertionKind;
+    loc:       Loc;
+}
+
 // ── Within ─────────────────────────────────────────────────────────────────────
 
 export interface WithinStep {
@@ -125,7 +153,9 @@ export type Step =
     | StoreStep
     | WithinStep
     | LoadComponentStep
-    | ApplyFixtureStep;
+    | ApplyFixtureStep
+    | RegisterSpyStep
+    | AssertSpyStep;
 
 // ── Scenario ────────────────────────────────────────────────────────────────────
 

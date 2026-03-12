@@ -16,6 +16,7 @@
  */
 
 import type { MiuraRunner } from './runner.js';
+import type { SpyCall } from '../parser/ast.js';
 
 // ── Minimal Playwright Page / Locator types ──────────────────────────────────
 // Typed against the Playwright public API so we don't require @playwright/test
@@ -52,8 +53,9 @@ interface PwPage {
 // ── PlaywrightRunner ─────────────────────────────────────────────────────────
 
 export class PlaywrightRunner implements MiuraRunner {
-    private _page:       PwPage;
-    private _scopeStack: PwLocator[] = [];
+    private _page:        PwPage;
+    private _scopeStack:  PwLocator[] = [];
+    private _spyRegistry: Map<string, SpyCall[]> = new Map();
     private _timeout:    number;
 
     constructor(page: PwPage, opts: { timeout?: number } = {}) {
@@ -170,6 +172,24 @@ export class PlaywrightRunner implements MiuraRunner {
 
     async getAttr(selector: string, attr: string): Promise<string | null> {
         return this._loc(selector).getAttribute(attr);
+    }
+
+    async registerSpy(name: string, returnValue?: string): Promise<void> {
+        const calls: SpyCall[] = [];
+        this._spyRegistry.set(name, calls);
+        // page.exposeFunction exposes a Node.js callback into the browser context
+        await (this._page as any).exposeFunction(name, (...rawArgs: unknown[]) => {
+            calls.push({ args: rawArgs.map(String), returnValue });
+            return returnValue;
+        });
+    }
+
+    async getSpyCalls(name: string): Promise<SpyCall[]> {
+        return this._spyRegistry.get(name) ?? [];
+    }
+
+    async resetAllSpies(): Promise<void> {
+        for (const calls of this._spyRegistry.values()) calls.length = 0;
     }
 
     async focus(selector: string): Promise<void> {

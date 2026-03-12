@@ -14,6 +14,7 @@ import type {
     HoverAction, ScrollAction, WaitForAction, WaitMsAction,
     NavigateAction, ReloadAction, PressAction, FocusAction,
     LoadComponentStep, ApplyFixtureStep,
+    RegisterSpyStep, AssertSpyStep, SpyAssertionKind,
     AssertElementStep, AssertVariableStep,
     Loc,
 } from './ast.js';
@@ -174,6 +175,7 @@ export class Parser {
             case 'FOCUS_KW': return this._parseFocusStep();
             case 'COMPONENT':return this._parseLoadComponentStep();
             case 'FIXTURE':  return this._parseApplyFixtureStep();
+            case 'REGISTER': return this._parseRegisterSpyStep();
             case 'IDENT':
                 // Handle "double-click" and "right-click" as IDENT tokens
                 if (tok.value.toLowerCase() === 'double-click') return this._parseClickStep('double-click');
@@ -281,6 +283,22 @@ export class Parser {
     private _parseCheckStep(): Step {
         const loc = this._loc();
         this._expect('CHECK');
+
+        // check spy "name" ...
+        if (this._at('SPY')) {
+            this._advance();
+            const spyName = this._expectString('"spy name"');
+            let assertion: SpyAssertionKind;
+            if (this._at('LAST')) {
+                this._advance();
+                this._expect('RETURNED_KW');
+                const value = this._expectString('"expected return value"');
+                assertion = { op: 'last-returned', value };
+            } else {
+                assertion = this._parseSpyAssertion();
+            }
+            return { kind: 'assert-spy', spyName, assertion, loc } satisfies AssertSpyStep;
+        }
 
         // check $var equals/matches "..."
         if (this._at('VARIABLE')) {
@@ -431,6 +449,54 @@ export class Parser {
         this._expect('FOCUS_KW');
         const element = this._parseElementRef();
         return { kind: 'action', action: 'focus', element, loc } as FocusAction & { kind: 'action' };
+    }
+
+    // ── Spy steps ──────────────────────────────────────────────────────────────
+
+    private _parseRegisterSpyStep(): Step {
+        const loc = this._loc();
+        this._expect('REGISTER');
+        this._expect('SPY');
+        const name = this._expectString('"spy name"');
+        let returnValue: string | undefined;
+        if (this._at('RETURNING')) {
+            this._advance();
+            returnValue = this._expectString('"return value"');
+        }
+        return { kind: 'register-spy', name, returnValue, loc } satisfies RegisterSpyStep;
+    }
+
+    private _parseSpyAssertion(): SpyAssertionKind {
+        this._expect('WAS');
+        // was not called
+        if (this._at('NOT') || this._at('NEVER_KW')) {
+            this._advance();
+            this._tryExpect('CALLED');
+            return { op: 'was-not-called' };
+        }
+        this._expect('CALLED');
+        // was called once
+        if (this._at('ONCE')) {
+            this._advance();
+            return { op: 'was-called-times', count: 1 };
+        }
+        // was called N times
+        if (this._at('NUMBER')) {
+            const count = Number(this._advance().value);
+            this._tryExpect('TIMES');
+            return { op: 'was-called-times', count };
+        }
+        // was called with "arg1" "arg2" ...
+        if (this._at('WITH_KW')) {
+            this._advance();
+            const args: string[] = [];
+            while (this._at('STRING')) {
+                args.push(this._advance().value);
+            }
+            return { op: 'was-called-with', args };
+        }
+        // bare: was called (at least once)
+        return { op: 'was-called' };
     }
 
     // ── Given special steps ───────────────────────────────────────────────────

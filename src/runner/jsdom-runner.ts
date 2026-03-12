@@ -6,7 +6,8 @@
  */
 
 import { JSDOM } from 'jsdom';
-import type { MiuraRunner } from './runner.js';
+import type { MiuraRunner, } from './runner.js';
+import type { SpyCall } from '../parser/ast.js';
 
 export class JSDOMRunner implements MiuraRunner {
     private _dom:        JSDOM | null = null;
@@ -14,6 +15,7 @@ export class JSDOMRunner implements MiuraRunner {
     private _window:     (Window & typeof globalThis) | null = null;
     private _timeout:    number;
     private _scopeStack: Element[] = [];
+    private _spyRegistry = new Map<string, SpyCall[]>();
 
     constructor(opts: { timeout?: number } = {}) {
         this._timeout = opts.timeout ?? 5000;
@@ -156,6 +158,25 @@ export class JSDOMRunner implements MiuraRunner {
 
     async getAttr(selector: string, attr: string): Promise<string | null> {
         return this._find(selector).getAttribute(attr);
+    }
+
+    async registerSpy(name: string, returnValue?: string): Promise<void> {
+        const calls: SpyCall[] = [];
+        this._spyRegistry.set(name, calls);
+        if (this._document?.defaultView) {
+            (this._document.defaultView as any)[name] = (...rawArgs: unknown[]) => {
+                calls.push({ args: rawArgs.map(String), returnValue });
+                return returnValue;
+            };
+        }
+    }
+
+    async getSpyCalls(name: string): Promise<SpyCall[]> {
+        return this._spyRegistry.get(name) ?? [];
+    }
+
+    async resetAllSpies(): Promise<void> {
+        for (const calls of this._spyRegistry.values()) calls.length = 0;
     }
 
     async focus(selector: string): Promise<void> {

@@ -5,7 +5,7 @@
  * The Executor ties together the Parser, Resolver, and Runner to run a full suite.
  */
 
-import type { XTestFile, SuiteNode, ScenarioNode, Step, ActionStep, ElementRef, WithinStep, LoadComponentStep, ApplyFixtureStep } from '../parser/ast.js';
+import type { XTestFile, SuiteNode, ScenarioNode, Step, ActionStep, ElementRef, WithinStep, LoadComponentStep, ApplyFixtureStep, RegisterSpyStep, AssertSpyStep, SpyCall } from '../parser/ast.js';
 import type { SurfaceManifest } from '../manifest/types.js';
 import { Resolver, type ResolutionResult } from '../resolver/resolver.js';
 
@@ -62,6 +62,12 @@ export interface MiuraRunner {
     isReadOnly(selector: string): Promise<boolean>;
     /** Count the number of elements matching the selector (ignores scope stack). */
     count(selector: string): Promise<number>;
+    /** Register a named spy on the window/global object and return its recorded calls. */
+    registerSpy(name: string, returnValue?: string): Promise<void>;
+    /** Get all recorded calls for a named spy. */
+    getSpyCalls(name: string): Promise<SpyCall[]>;
+    /** Clear all spy call records (called between scenarios). */
+    resetAllSpies(): Promise<void>;
     /** Push a scoping root — subsequent selectors are resolved within this element. */
     pushScope(selector: string): Promise<void>;
     /** Pop the most recently pushed scope. */
@@ -183,6 +189,7 @@ export class Executor {
             // Re-mount between scenarios for isolation
             if (html && scenarios.filter(s => !s.skipped).length > 0) await this._runner.mount(html);
             this._vars.clear();
+            await this._runner.resetAllSpies();
 
             // beforeEach
             for (const step of suite.beforeEach) {
@@ -281,6 +288,8 @@ export class Executor {
             case 'within':          return this._execWithin(step);
             case 'load-component':  return this._execLoadComponent(step as LoadComponentStep);
             case 'apply-fixture':   return this._execApplyFixture(step as ApplyFixtureStep);
+            case 'register-spy':    return this._execRegisterSpy(step as RegisterSpyStep);
+            case 'assert-spy':      return this._execAssertSpy(step as AssertSpyStep);
         }
     }
 
@@ -318,6 +327,47 @@ export class Executor {
             await this._runner.mount(html);
         } else {
             throw new Error(`[miura] Fixture "${step.name}" not found. Register it in Executor options: new Executor(runner, manifest, { fixtures: { "${step.name}": html } })`);
+        }
+    }
+
+    private async _execRegisterSpy(step: RegisterSpyStep): Promise<void> {
+        await this._runner.registerSpy(step.name, step.returnValue);
+    }
+
+    private async _execAssertSpy(step: AssertSpyStep): Promise<void> {
+        const calls = await this._runner.getSpyCalls(step.spyName);
+        const a     = step.assertion;
+
+        const fail = (msg: string) => {
+            throw new Error(`Assertion failed: check spy "${step.spyName}" ${msg}`);
+        };
+
+        switch (a.op) {
+            case 'was-called':
+                if (calls.length === 0) fail(`was called — but was never called`);
+                break;
+            case 'was-not-called':
+                if (calls.length > 0) fail(`was not called — but was called ${calls.length} time(s)`);
+                break;
+            case 'was-called-times':
+                if (calls.length !== a.count)
+                    fail(`was called ${a.count} time(s) — but was called ${calls.length} time(s)`);
+                break;
+            case 'was-called-with': {
+                const match = calls.some(c =>
+                    a.args.every((expected, i) => c.args[i] === expected)
+                );
+                if (!match)
+                    fail(`was called with ${JSON.stringify(a.args)} — actual calls: ${JSON.stringify(calls.map(c => c.args))}`);
+                break;
+            }
+            case 'last-returned': {
+                const last = calls[calls.length - 1];
+                if (!last) { fail(`last returned "${a.value}" — but was never called`); break; }
+                if (last.returnValue !== a.value)
+                    fail(`last returned "${a.value}" — got "${last.returnValue}"`);
+                break;
+            }
         }
     }
 
@@ -468,6 +518,20 @@ export class Executor {
                 return `component ${s.name} is loaded`;
             case 'apply-fixture':
                 return `fixture "${s.name}" is applied`;
+            case 'register-spy':
+                return `register spy "${s.name}"${s.returnValue !== undefined ? ` returning "${s.returnValue}"` : ''}`;
+            case 'assert-spy': {
+                const a = s.assertion;
+                const detail = (() => {
+                    if (a.op === 'was-called')       return 'was called';
+                    if (a.op === 'was-not-called')   return 'was not called';
+                    if (a.op === 'was-called-times') return `was called ${a.count} time(s)`;
+                    if (a.op === 'was-called-with')  return `was called with ${JSON.stringify(a.args)}`;
+                    if (a.op === 'last-returned')    return `last returned "${a.value}"`;
+                    return a.op;
+                })();
+                return `check spy "${s.spyName}" ${detail}`;
+            }
             default:
                 return String((s as any).kind ?? 'unknown step');
         }
