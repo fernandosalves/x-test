@@ -54,7 +54,7 @@ export type ActionStep =
 // ── Assertions ──────────────────────────────────────────────────────────────────
 
 export type VisibilityState = 'visible' | 'hidden' | 'absent' | 'present';
-export type InputState      = 'enabled' | 'disabled' | 'checked' | 'unchecked' | 'readonly' | 'focused';
+export type InputState      = 'enabled' | 'disabled' | 'checked' | 'unchecked' | 'readonly' | 'focused' | 'focusable';
 
 export type AssertionKind =
     | { op: 'is-visibility'; state: VisibilityState }
@@ -70,7 +70,9 @@ export type AssertionKind =
     | { op: 'has-count';     count: number }
     | { op: 'is-empty' }
     | { op: 'has-aria';      name: string; value: string }
-    | { op: 'has-role';      role: string };
+    | { op: 'has-role';             role: string }
+    | { op: 'has-accessible-name'; value: string }
+    | { op: 'has-alt';             value: string };
 
 export interface AssertElementStep {
     kind:      'assert-element';
@@ -149,6 +151,21 @@ export interface AssertSpyStep {
     loc:       Loc;
 }
 
+// ── A11y scan step ──────────────────────────────────────────────────────────────
+
+export interface A11yViolation {
+    id:          string;
+    description: string;
+    impact:      string | null;
+    nodes:       string[];
+}
+
+export interface CheckA11yStep {
+    kind:     'check-a11y';
+    selector: string | undefined;
+    loc:      Loc;
+}
+
 // ── Screenshot ─────────────────────────────────────────────────────────────────
 
 export interface TakeScreenshotStep {
@@ -178,7 +195,8 @@ export type Step =
     | RegisterSpyStep
     | ResetSpyStep
     | AssertSpyStep
-    | TakeScreenshotStep;
+    | TakeScreenshotStep
+    | CheckA11yStep;
 
 // ── Scenario ────────────────────────────────────────────────────────────────────
 

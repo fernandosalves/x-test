@@ -222,6 +222,43 @@ export class JSDOMRunner implements MiuraRunner {
         // JSDOM has no rendering — screenshot is a no-op
     }
 
+    async isFocusable(selector: string): Promise<boolean> {
+        return (this._find(selector) as HTMLElement).tabIndex >= 0;
+    }
+
+    async getAccessibleName(selector: string): Promise<string> {
+        const el  = this._find(selector) as HTMLElement;
+        const doc = this._document!;
+        const ariaLabel = el.getAttribute('aria-label');
+        if (ariaLabel) return ariaLabel.trim();
+        const labelledBy = el.getAttribute('aria-labelledby');
+        if (labelledBy) {
+            const text = labelledBy.split(/\s+/)
+                .map(id => doc.getElementById(id)?.textContent?.trim() ?? '')
+                .join(' ').trim();
+            if (text) return text;
+        }
+        const alt = el.getAttribute('alt');
+        if (alt !== null) return alt.trim();
+        const title = el.getAttribute('title');
+        if (title) return title.trim();
+        return el.textContent?.trim() ?? '';
+    }
+
+    async checkA11y(selector?: string): Promise<import('../parser/ast.js').A11yViolation[]> {
+        const { default: axe } = await import('axe-core');
+        const doc = this._document;
+        if (!doc) return [];
+        const context = selector ? (doc.querySelector(selector) ?? doc.documentElement) : doc.documentElement;
+        const result  = await axe.run(context as Element);
+        return result.violations.map(v => ({
+            id:          v.id,
+            description: v.description,
+            impact:      v.impact ?? null,
+            nodes:       v.nodes.map(n => n.html),
+        }));
+    }
+
     async count(selector: string): Promise<number> {
         if (!this._document) return 0;
         const root: Element | Document =

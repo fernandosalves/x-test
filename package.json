@@ -11,33 +11,40 @@
     "exports": {
         ".": {
             "import": "./dist/index.js",
-            "types":  "./dist/index.d.ts"
+            "types": "./dist/index.d.ts"
         },
         "./directive": {
             "import": "./dist/directive/xtest.js",
-            "types":  "./dist/directive/xtest.d.ts"
+            "types": "./dist/directive/xtest.d.ts"
         }
     },
     "scripts": {
-        "build":     "tsc --build",
-        "dev":       "tsc --build --watch",
-        "test":      "vitest run",
-        "test:watch":"vitest",
+        "build": "tsc --build",
+        "dev": "tsc --build --watch",
+        "test": "vitest run",
+        "test:watch": "vitest",
         "storybook": "storybook dev -p 6008",
         "build-storybook": "storybook build"
     },
     "dependencies": {
+        "axe-core": "^4.11.1",
         "jsdom": "^24.0.0"
     },
     "devDependencies": {
-        "typescript":                  "^5.4.0",
-        "vitest":                      "^2.0.0",
-        "@types/jsdom":                "^21.0.0",
-        "@types/node":                 "^20.0.0",
-        "@storybook/html-vite":        "^8.0.0",
         "@storybook/addon-essentials": "^8.0.0",
-        "storybook":                   "^8.0.0"
+        "@storybook/html-vite": "^8.0.0",
+        "@types/jsdom": "^21.0.0",
+        "@types/node": "^20.0.0",
+        "storybook": "^8.0.0",
+        "typescript": "^5.4.0",
+        "vitest": "^2.0.0"
     },
-    "keywords": ["testing", "web-components", "plain-language", "bdd", "e2e"],
+    "keywords": [
+        "testing",
+        "web-components",
+        "plain-language",
+        "bdd",
+        "e2e"
+    ],
     "license": "MIT"
 }

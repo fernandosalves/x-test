@@ -17,6 +17,7 @@ export type TokenType =
     | 'COMPONENT' | 'LOADED' | 'FIXTURE' | 'APPLIED'
     | 'SPY' | 'REGISTER' | 'WAS' | 'CALLED' | 'RETURNED_KW' | 'TIMES' | 'ONCE' | 'WITH_KW' | 'NEVER_KW' | 'RETURNING' | 'LAST'
     | 'BLUR' | 'FILL' | 'RESET' | 'EMPTY' | 'ARIA' | 'ROLE_KW' | 'SCREENSHOT' | 'TAKE'
+    | 'FOCUSABLE' | 'ACCESSIBLE' | 'NAME_KW' | 'ALT' | 'A11Y' | 'VIOLATIONS'
     | 'INTO' | 'IN' | 'FOR' | 'TO' | 'AS' | 'ON' | 'PAGE' | 'MS'
     | 'IS' | 'NOT' | 'CONTAINS' | 'HAS' | 'EQUALS' | 'MATCHES'
     | 'VALUE' | 'TEXT' | 'CLASS' | 'FOCUS' | 'FOCUS_KW'
@@ -78,6 +79,7 @@ const KEYWORDS: Record<string, TokenType> = {
     ms:             'MS',
     is:             'IS',
     not:            'NOT',
+    no:             'NOT',
     contains:       'CONTAINS',
     has:            'HAS',
     equals:         'EQUALS',
@@ -91,6 +93,12 @@ const KEYWORDS: Record<string, TokenType> = {
     loaded:         'LOADED',
     fixture:        'FIXTURE',
     applied:        'APPLIED',
+    focusable:      'FOCUSABLE',
+    accessible:     'ACCESSIBLE',
+    name:           'NAME_KW',
+    alt:            'ALT',
+    a11y:           'A11Y',
+    violations:     'VIOLATIONS',
     blur:           'BLUR',
     fill:           'FILL',
     reset:          'RESET',

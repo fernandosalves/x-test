@@ -106,10 +106,15 @@ AssertionOp ← "is" Visibility
             / "has" "attr"  String ("equals" String / "is" ("present"/"absent"))
             / "has" "aria"  String String
             / "has" "role"  String
+            / "has" "accessible" "name" String
+            / "has" "alt" String
             / "matches" String
 
+A11yStep    ← "check" "page" "has" ("no" / "not") "a11y" ("violations")?
+            / "check" ElementRef "has" ("no" / "not") "a11y" ("violations")?
+
 Visibility  ← "visible" / "hidden" / "absent" / "present"
-InputState  ← "enabled" / "disabled" / "checked" / "unchecked" / "readonly" / "focused"
+InputState  ← "enabled" / "disabled" / "checked" / "unchecked" / "readonly" / "focused" / "focusable"
 
 StoreStep   ← "store" ElementRef "text" "as" Variable
             / "store" ElementRef "value" "as" Variable
@@ -303,10 +308,96 @@ check <element> has aria "labelledby" "my-id"     # checks any aria-* attribute
 check <element> has role "button"                 # checks role attribute
 check <element> not has role "link"
 
+# Focusability
+check <element> is focusable                      # tabIndex >= 0
+check <element> not is focusable
+
+# Accessible name  (aria-label > aria-labelledby > alt > title > textContent)
+check <element> has accessible name "Submit form"
+check <element> has accessible name "Close dialog"
+
+# Image alt text
+check <element> has alt "Company logo"
+check <element> has alt ""                        # decorative image (empty alt)
+
 # Any assertion can be negated
 check <element> not has prop "type" equals "password"
 check <element> not has count 5
 check <element> is not visible
+```
+
+---
+
+## Accessibility Testing
+
+Miura has first-class a11y support through four assertion types and an **axe-core** integration for automated scanning.
+
+### Focusability
+
+```
+check <element> is focusable        # tabIndex >= 0
+check <element> not is focusable    # tabIndex < 0 (explicitly removed from tab order)
+```
+
+### Accessible Name
+
+Computes the accessible name following the ARIA priority chain:
+`aria-label` → `aria-labelledby` → `alt` (images) → `title` → `textContent`
+
+```
+check submit-btn has accessible name "Submit form"
+check icon-btn   has accessible name "Close dialog"
+check logo       has accessible name "Company logo"  # reads alt attribute
+```
+
+### Image Alt Text
+
+Shorthand for checking the `alt` attribute directly:
+
+```
+check logo  has alt "Company logo"
+check deco  has alt ""              # decorative image — alt must be empty string
+check hero  not has alt ""          # meaningful image — must have non-empty alt
+```
+
+### Axe-core Scan (`check … has no a11y violations`)
+
+Runs the full [axe-core](https://github.com/dequelabs/axe-core) ruleset against a page or scoped element. Fails with a detailed list if any violations are found.
+
+```
+check page has no a11y violations           # whole document
+check login-form has no a11y violations     # scoped to an element subtree
+```
+
+**Error output example:**
+```
+[miura] Accessibility violations found:
+  • [critical] image-alt: Ensures <img> elements have alternate text
+    Nodes: <img src="hero.png">
+  • [serious] label: Ensures every form element has a label
+    Nodes: <input type="email">
+```
+
+**Notes:**
+- Colour-contrast checks produce a harmless JSDOM `canvas` warning — they are skipped automatically in environments without a canvas renderer
+- Scoped checks (`check login-form has no a11y violations`) only report violations *within* that element's subtree
+- Playwright mode injects `axe.min.js` at runtime — no extra setup required
+
+### Combined a11y example
+
+```
+suite Accessibility — Login Form
+  scenario "form is accessible"
+    check page has no a11y violations
+
+  scenario "submit button has correct accessible name"
+    check submit-btn is focusable
+    check submit-btn has accessible name "Log in to your account"
+    check submit-btn has role "button"
+
+  scenario "logo has meaningful alt text"
+    check logo has alt "Acme Inc."
+    check logo not has alt ""
 ```
 
 ---

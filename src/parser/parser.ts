@@ -16,7 +16,7 @@ import type {
     BlurAction, FillAction,
     LoadComponentStep, ApplyFixtureStep,
     RegisterSpyStep, ResetSpyStep, AssertSpyStep, SpyAssertionKind,
-    TakeScreenshotStep,
+    TakeScreenshotStep, CheckA11yStep, A11yViolation,
     AssertElementStep, AssertVariableStep,
     Loc,
 } from './ast.js';
@@ -292,6 +292,11 @@ export class Parser {
         const loc = this._loc();
         this._expect('CHECK');
 
+        // check page has no a11y violations
+        if (this._at('PAGE')) {
+            return this._parseCheckA11yStep(loc);
+        }
+
         // check spy "name" ...
         if (this._at('SPY')) {
             this._advance();
@@ -319,6 +324,16 @@ export class Parser {
         }
 
         const element = this._parseElementRef();
+
+        // check <element> has no a11y violations
+        if (this._at('HAS') && this._peekAt(1)?.type === 'NOT' && this._peekAt(2)?.type === 'A11Y') {
+            this._advance(); // HAS
+            this._advance(); // NOT
+            this._advance(); // A11Y
+            this._tryExpect('VIOLATIONS');
+            return { kind: 'check-a11y', selector: element.value, loc } satisfies CheckA11yStep;
+        }
+
         const negated = this._at('NOT') ? (this._advance(), true) : false;
 
         // "is not" — negation as two tokens
@@ -383,6 +398,17 @@ export class Parser {
                 const role = this._expectString('"role name"');
                 return { op: 'has-role', role };
             }
+            if (this._at('ACCESSIBLE')) {
+                this._advance();
+                this._tryExpect('NAME_KW');
+                const value = this._expectString('"accessible name"');
+                return { op: 'has-accessible-name', value };
+            }
+            if (this._at('ALT')) {
+                this._advance();
+                const value = this._expectString('"alt text"');
+                return { op: 'has-alt', value };
+            }
             if (this._at('ATTR')) {
                 this._advance();
                 const name = this._expectString('"attr name"');
@@ -418,7 +444,7 @@ export class Parser {
         };
         const INPUT_STATE: Record<string, InputState> = {
             ENABLED: 'enabled', DISABLED: 'disabled', CHECKED: 'checked',
-            UNCHECKED: 'unchecked', READONLY: 'readonly', FOCUS_KW: 'focused',
+            UNCHECKED: 'unchecked', READONLY: 'readonly', FOCUS_KW: 'focused', FOCUSABLE: 'focusable',
         };
 
         const tok = this._peek();
@@ -473,6 +499,24 @@ export class Parser {
         this._expect('FOCUS_KW');
         const element = this._parseElementRef();
         return { kind: 'action', action: 'focus', element, loc } as FocusAction & { kind: 'action' };
+    }
+
+    // ── A11y check step ────────────────────────────────────────────────────
+
+    private _parseCheckA11yStep(loc: Loc): Step {
+        let selector: string | undefined;
+        if (this._at('PAGE')) {
+            this._advance(); // consume 'page'
+        } else {
+            // It's an element ref — resolve to name string for later
+            const ref = this._parseElementRef();
+            selector = ref.value;
+        }
+        this._expect('HAS');
+        this._expect('NOT'); // 'no' is tokenized as NOT
+        this._expect('A11Y');
+        this._tryExpect('VIOLATIONS');
+        return { kind: 'check-a11y', selector, loc } satisfies CheckA11yStep;
     }
 
     // ── Blur / Fill steps ──────────────────────────────────────────────────
@@ -614,6 +658,10 @@ export class Parser {
 
     private _peek(): Token | undefined {
         return this._tokens[this._pos];
+    }
+
+    private _peekAt(offset: number): Token | undefined {
+        return this._tokens[this._pos + offset];
     }
 
     private _advance(): Token {

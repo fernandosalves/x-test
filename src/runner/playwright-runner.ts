@@ -199,6 +199,47 @@ export class PlaywrightRunner implements MiuraRunner {
         for (const calls of this._spyRegistry.values()) calls.length = 0;
     }
 
+    async isFocusable(selector: string): Promise<boolean> {
+        return this._loc(selector).evaluate(el => (el as HTMLElement).tabIndex >= 0);
+    }
+
+    async getAccessibleName(selector: string): Promise<string> {
+        return this._loc(selector).evaluate(el => {
+            const ariaLabel = el.getAttribute('aria-label');
+            if (ariaLabel) return ariaLabel.trim();
+            const labelledBy = el.getAttribute('aria-labelledby');
+            if (labelledBy) {
+                const parts = labelledBy.split(/\s+/)
+                    .map(id => document.getElementById(id)?.textContent?.trim() ?? '');
+                const text = parts.join(' ').trim();
+                if (text) return text;
+            }
+            const alt = el.getAttribute('alt');
+            if (alt !== null) return alt.trim();
+            const title = el.getAttribute('title');
+            if (title) return title.trim();
+            return el.textContent?.trim() ?? '';
+        });
+    }
+
+    async checkA11y(selector?: string): Promise<import('../parser/ast.js').A11yViolation[]> {
+        await (this._page as any).addScriptTag({
+            path: new URL('../../node_modules/axe-core/axe.min.js', import.meta.url).pathname,
+        });
+        const violations = await (this._page as any).evaluate((sel: string | undefined) =>
+            // @ts-ignore — axe is injected at runtime
+            axe.run(sel ? document.querySelector(sel) : document)
+                .then((r: any) => r.violations.map((v: any) => ({
+                    id:          v.id,
+                    description: v.description,
+                    impact:      v.impact ?? null,
+                    nodes:       v.nodes.map((n: any) => n.html),
+                }))),
+            selector,
+        );
+        return violations;
+    }
+
     async isEmpty(selector: string): Promise<boolean> {
         return this._loc(selector).evaluate(el => {
             if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement || el instanceof HTMLSelectElement) {
