@@ -24,15 +24,15 @@ export type ElementRef =
 
 export type ActionKind =
     | 'click' | 'double-click' | 'right-click'
-    | 'type' | 'clear' | 'select'
-    | 'hover' | 'scroll-to' | 'focus'
+    | 'type' | 'fill' | 'clear' | 'select'
+    | 'hover' | 'scroll-to' | 'focus' | 'blur'
     | 'wait-for' | 'wait-ms'
     | 'navigate' | 'reload'
     | 'press';
 
 export interface TypeAction    { action: 'type';        element: ElementRef; value: string;  loc: Loc }
 export interface ClickAction   { action: 'click'        | 'double-click' | 'right-click'; element: ElementRef; loc: Loc }
-export interface SelectAction  { action: 'select';      element: ElementRef; value: string;  loc: Loc }
+export interface SelectAction  { action: 'select';      element: ElementRef; value: string; by?: 'label' | 'value'; loc: Loc }
 export interface ClearAction   { action: 'clear';       element: ElementRef; loc: Loc }
 export interface HoverAction   { action: 'hover';       element: ElementRef; loc: Loc }
 export interface ScrollAction  { action: 'scroll-to';   element: ElementRef; loc: Loc }
@@ -42,11 +42,14 @@ export interface NavigateAction{ action: 'navigate';    url: string;         loc
 export interface ReloadAction  { action: 'reload';      loc: Loc }
 export interface PressAction   { action: 'press';       key: string;         loc: Loc }
 export interface FocusAction   { action: 'focus';       element: ElementRef; loc: Loc }
+export interface BlurAction    { action: 'blur';        element: ElementRef; loc: Loc }
+export interface FillAction    { action: 'fill';        element: ElementRef; value: string; loc: Loc }
 
 export type ActionStep =
     | TypeAction | ClickAction | SelectAction | ClearAction
     | HoverAction | ScrollAction | WaitForAction | WaitMsAction
-    | NavigateAction | ReloadAction | PressAction | FocusAction;
+    | NavigateAction | ReloadAction | PressAction | FocusAction
+    | BlurAction | FillAction;
 
 // ── Assertions ──────────────────────────────────────────────────────────────────
 
@@ -64,7 +67,10 @@ export type AssertionKind =
     | { op: 'matches';       pattern: string }
     | { op: 'has-prop';      name: string; value: string }
     | { op: 'has-attr';      name: string; value?: string; state?: 'present' | 'absent' }
-    | { op: 'has-count';     count: number };
+    | { op: 'has-count';     count: number }
+    | { op: 'is-empty' }
+    | { op: 'has-aria';      name: string; value: string }
+    | { op: 'has-role';      role: string };
 
 export interface AssertElementStep {
     kind:      'assert-element';
@@ -75,11 +81,12 @@ export interface AssertElementStep {
 }
 
 export interface AssertVariableStep {
-    kind:    'assert-variable';
+    kind:     'assert-variable';
     variable: string;
-    op:       'equals' | 'matches';
-    value:    string;
-    loc:      Loc;
+    op:        'equals' | 'matches';
+    value:     string;
+    negated:   boolean;
+    loc:       Loc;
 }
 
 export type AssertStep = AssertElementStep | AssertVariableStep;
@@ -129,11 +136,25 @@ export interface RegisterSpyStep {
     loc:         Loc;
 }
 
+export interface ResetSpyStep {
+    kind: 'reset-spy';
+    name: string;
+    loc:  Loc;
+}
+
 export interface AssertSpyStep {
     kind:      'assert-spy';
     spyName:   string;
     assertion: SpyAssertionKind;
     loc:       Loc;
+}
+
+// ── Screenshot ─────────────────────────────────────────────────────────────────
+
+export interface TakeScreenshotStep {
+    kind: 'take-screenshot';
+    name: string | undefined;
+    loc:  Loc;
 }
 
 // ── Within ─────────────────────────────────────────────────────────────────────
@@ -155,7 +176,9 @@ export type Step =
     | LoadComponentStep
     | ApplyFixtureStep
     | RegisterSpyStep
-    | AssertSpyStep;
+    | ResetSpyStep
+    | AssertSpyStep
+    | TakeScreenshotStep;
 
 // ── Scenario ────────────────────────────────────────────────────────────────────
 

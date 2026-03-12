@@ -13,8 +13,9 @@ export { ParseError } from './parser/parser.js';
 export type {
     XTestFile, SuiteNode, ScenarioNode, Step,
     ActionStep, AssertStep, StoreStep, WithinStep,
-    LoadComponentStep, ApplyFixtureStep, FocusAction,
-    RegisterSpyStep, AssertSpyStep, SpyCall, SpyAssertionKind,
+    LoadComponentStep, ApplyFixtureStep, FocusAction, BlurAction, FillAction,
+    RegisterSpyStep, ResetSpyStep, AssertSpyStep, SpyCall, SpyAssertionKind,
+    TakeScreenshotStep,
     ElementRef, AssertionKind, Loc,
 } from './parser/ast.js';
 

@@ -62,12 +62,14 @@ export class JSDOMRunner implements MiuraRunner {
         el.dispatchEvent(new this._window!.Event('change', { bubbles: true }));
     }
 
-    async select(selector: string, optionText: string): Promise<void> {
-        const el = this._find(selector) as HTMLSelectElement;
-        const option = Array.from(el.options).find(o => o.text === optionText || o.value === optionText);
-        if (!option) throw new Error(`Option "${optionText}" not found in ${selector}`);
-        el.value = option.value;
-        el.dispatchEvent(new this._window!.Event('change', { bubbles: true }));
+    async select(selector: string, option: string, by: 'label' | 'value' = 'label'): Promise<void> {
+        const el  = this._find(selector) as HTMLSelectElement;
+        const opt = Array.from(el.options).find(o =>
+            by === 'value' ? o.value === option : o.textContent?.trim() === option
+        );
+        if (!opt) throw new Error(`[miura] Option ${by}="${option}" not found in ${selector}`);
+        el.value = opt.value;
+        el.dispatchEvent(new (this._window!.Event)('change', { bubbles: true }));
     }
 
     async hover(selector: string): Promise<void> {
@@ -179,6 +181,18 @@ export class JSDOMRunner implements MiuraRunner {
         for (const calls of this._spyRegistry.values()) calls.length = 0;
     }
 
+    async blur(selector: string): Promise<void> {
+        (this._find(selector) as HTMLElement).blur();
+    }
+
+    async fill(selector: string, value: string): Promise<void> {
+        const el = this._find(selector) as HTMLInputElement;
+        el.value = '';
+        el.value = value;
+        el.dispatchEvent(new (this._window!.Event)('input',  { bubbles: true }));
+        el.dispatchEvent(new (this._window!.Event)('change', { bubbles: true }));
+    }
+
     async focus(selector: string): Promise<void> {
         (this._find(selector) as HTMLElement).focus();
     }
@@ -189,6 +203,23 @@ export class JSDOMRunner implements MiuraRunner {
 
     async isReadOnly(selector: string): Promise<boolean> {
         return (this._find(selector) as HTMLInputElement).readOnly ?? false;
+    }
+
+    async isEmpty(selector: string): Promise<boolean> {
+        const el = this._find(selector) as HTMLInputElement;
+        if (el.tagName === 'INPUT' || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT') {
+            return el.value === '';
+        }
+        return (el.textContent ?? '').trim() === '';
+    }
+
+    async resetSpy(name: string): Promise<void> {
+        const calls = this._spyRegistry.get(name);
+        if (calls) calls.length = 0;
+    }
+
+    async screenshot(_name?: string): Promise<void> {
+        // JSDOM has no rendering — screenshot is a no-op
     }
 
     async count(selector: string): Promise<number> {

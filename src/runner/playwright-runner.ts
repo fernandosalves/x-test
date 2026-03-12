@@ -98,8 +98,10 @@ export class PlaywrightRunner implements MiuraRunner {
         await this._loc(selector).fill('');
     }
 
-    async select(selector: string, optionText: string): Promise<void> {
-        await this._loc(selector).selectOption({ label: optionText });
+    async select(selector: string, option: string, by: 'label' | 'value' = 'label'): Promise<void> {
+        await this._loc(selector).selectOption(
+            by === 'value' ? { value: option } : { label: option }
+        );
     }
 
     async hover(selector: string): Promise<void> {
@@ -188,8 +190,35 @@ export class PlaywrightRunner implements MiuraRunner {
         return this._spyRegistry.get(name) ?? [];
     }
 
+    async resetSpy(name: string): Promise<void> {
+        const calls = this._spyRegistry.get(name);
+        if (calls) calls.length = 0;
+    }
+
     async resetAllSpies(): Promise<void> {
         for (const calls of this._spyRegistry.values()) calls.length = 0;
+    }
+
+    async isEmpty(selector: string): Promise<boolean> {
+        return this._loc(selector).evaluate(el => {
+            if (el instanceof HTMLInputElement || el instanceof HTMLTextAreaElement || el instanceof HTMLSelectElement) {
+                return el.value === '';
+            }
+            return (el.textContent ?? '').trim() === '';
+        });
+    }
+
+    async screenshot(name?: string): Promise<void> {
+        const path = name ? (name.endsWith('.png') ? name : name + '.png') : undefined;
+        await (this._page as any).screenshot(path ? { path } : {});
+    }
+
+    async blur(selector: string): Promise<void> {
+        await this._loc(selector).evaluate(el => (el as HTMLElement).blur());
+    }
+
+    async fill(selector: string, value: string): Promise<void> {
+        await this._loc(selector).fill(value);
     }
 
     async focus(selector: string): Promise<void> {

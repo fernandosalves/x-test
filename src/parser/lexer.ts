@@ -16,6 +16,7 @@ export type TokenType =
     | 'NAVIGATE' | 'RELOAD' | 'PRESS' | 'STORE' | 'CHECK'
     | 'COMPONENT' | 'LOADED' | 'FIXTURE' | 'APPLIED'
     | 'SPY' | 'REGISTER' | 'WAS' | 'CALLED' | 'RETURNED_KW' | 'TIMES' | 'ONCE' | 'WITH_KW' | 'NEVER_KW' | 'RETURNING' | 'LAST'
+    | 'BLUR' | 'FILL' | 'RESET' | 'EMPTY' | 'ARIA' | 'ROLE_KW' | 'SCREENSHOT' | 'TAKE'
     | 'INTO' | 'IN' | 'FOR' | 'TO' | 'AS' | 'ON' | 'PAGE' | 'MS'
     | 'IS' | 'NOT' | 'CONTAINS' | 'HAS' | 'EQUALS' | 'MATCHES'
     | 'VALUE' | 'TEXT' | 'CLASS' | 'FOCUS' | 'FOCUS_KW'
@@ -90,6 +91,14 @@ const KEYWORDS: Record<string, TokenType> = {
     loaded:         'LOADED',
     fixture:        'FIXTURE',
     applied:        'APPLIED',
+    blur:           'BLUR',
+    fill:           'FILL',
+    reset:          'RESET',
+    empty:          'EMPTY',
+    aria:           'ARIA',
+    role:           'ROLE_KW',
+    screenshot:     'SCREENSHOT',
+    take:           'TAKE',
     spy:            'SPY',
     register:       'REGISTER',
     was:            'WAS',

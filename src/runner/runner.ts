@@ -5,7 +5,7 @@
  * The Executor ties together the Parser, Resolver, and Runner to run a full suite.
  */
 
-import type { XTestFile, SuiteNode, ScenarioNode, Step, ActionStep, ElementRef, WithinStep, LoadComponentStep, ApplyFixtureStep, RegisterSpyStep, AssertSpyStep, SpyCall } from '../parser/ast.js';
+import type { XTestFile, SuiteNode, ScenarioNode, Step, ActionStep, ElementRef, WithinStep, LoadComponentStep, ApplyFixtureStep, RegisterSpyStep, ResetSpyStep, AssertSpyStep, SpyCall, TakeScreenshotStep } from '../parser/ast.js';
 import type { SurfaceManifest } from '../manifest/types.js';
 import { Resolver, type ResolutionResult } from '../resolver/resolver.js';
 
@@ -24,8 +24,8 @@ export interface MiuraRunner {
     type(selector: string, text: string): Promise<void>;
     /** Clear an input. */
     clear(selector: string): Promise<void>;
-    /** Select an option in a <select> by visible text. */
-    select(selector: string, optionText: string): Promise<void>;
+    /** Select an option in a <select> by visible text (default) or by value attribute. */
+    select(selector: string, option: string, by?: 'label' | 'value'): Promise<void>;
     /** Hover over an element. */
     hover(selector: string): Promise<void>;
     /** Scroll to an element. */
@@ -56,18 +56,28 @@ export interface MiuraRunner {
     getAttr(selector: string, attr: string): Promise<string | null>;
     /** Move focus to an element (without click). */
     focus(selector: string): Promise<void>;
+    /** Remove focus from an element. */
+    blur(selector: string): Promise<void>;
+    /** Clear then type in one step (mirrors Playwright fill). */
+    fill(selector: string, value: string): Promise<void>;
     /** Check if an element has a CSS class. */
     hasClass(selector: string, className: string): Promise<boolean>;
     /** Check if an input/textarea is readonly. */
     isReadOnly(selector: string): Promise<boolean>;
     /** Count the number of elements matching the selector (ignores scope stack). */
     count(selector: string): Promise<number>;
+    /** Check whether an element is empty (value for inputs, trimmed text otherwise). */
+    isEmpty(selector: string): Promise<boolean>;
     /** Register a named spy on the window/global object and return its recorded calls. */
     registerSpy(name: string, returnValue?: string): Promise<void>;
     /** Get all recorded calls for a named spy. */
     getSpyCalls(name: string): Promise<SpyCall[]>;
+    /** Clear call records for one named spy. */
+    resetSpy(name: string): Promise<void>;
     /** Clear all spy call records (called between scenarios). */
     resetAllSpies(): Promise<void>;
+    /** Capture a screenshot (no-op in environments that don't support it). */
+    screenshot(name?: string): Promise<void>;
     /** Push a scoping root — subsequent selectors are resolved within this element. */
     pushScope(selector: string): Promise<void>;
     /** Pop the most recently pushed scope. */
@@ -289,7 +299,9 @@ export class Executor {
             case 'load-component':  return this._execLoadComponent(step as LoadComponentStep);
             case 'apply-fixture':   return this._execApplyFixture(step as ApplyFixtureStep);
             case 'register-spy':    return this._execRegisterSpy(step as RegisterSpyStep);
+            case 'reset-spy':       return this._runner.resetSpy((step as ResetSpyStep).name);
             case 'assert-spy':      return this._execAssertSpy(step as AssertSpyStep);
+            case 'take-screenshot': return this._runner.screenshot((step as TakeScreenshotStep).name);
         }
     }
 
@@ -301,7 +313,7 @@ export class Executor {
             case 'click':      return this._runner.click(r!.selector);
             case 'double-click': return this._runner.click(r!.selector, { double: true });
             case 'right-click':  return this._runner.click(r!.selector, { right: true });
-            case 'select':     return this._runner.select(r!.selector, (step as any).value);
+            case 'select':     return this._runner.select(r!.selector, (step as any).value, (step as any).by);
             case 'clear':      return this._runner.clear(r!.selector);
             case 'hover':      return this._runner.hover(r!.selector);
             case 'scroll-to':  return this._runner.scrollTo(r!.selector);
@@ -311,6 +323,8 @@ export class Executor {
             case 'reload':     return this._runner.reload();
             case 'press':      return this._runner.press((step as any).key);
             case 'focus':      return this._runner.focus(r!.selector);
+            case 'blur':       return this._runner.blur(r!.selector);
+            case 'fill':       return this._runner.fill(r!.selector, (step as any).value);
         }
     }
 
@@ -452,6 +466,21 @@ export class Executor {
                 await check(text.trim() === a.value, `text "${a.value}"`, `"${text.trim()}"`);
                 break;
             }
+            case 'is-empty': {
+                const empty = await this._runner.isEmpty(r.selector);
+                await check(empty, 'empty');
+                break;
+            }
+            case 'has-aria': {
+                const actual = await this._runner.getAttr(r.selector, `aria-${a.name}`);
+                await check(actual === a.value, `aria-${a.name}="${a.value}"`, `"${actual ?? '(absent)'}"`);
+                break;
+            }
+            case 'has-role': {
+                const actual = await this._runner.getAttr(r.selector, 'role');
+                await check(actual === a.role, `role="${a.role}"`, `"${actual ?? '(absent)'}"`);
+                break;
+            }
             default:
                 throw new Error(`[miura] Unhandled assertion op: ${(a as any).op}`);
         }
@@ -462,7 +491,8 @@ export class Executor {
         const match  = step.op === 'equals'
             ? stored === step.value
             : new RegExp(step.value).test(stored);
-        if (!match) throw new Error(`Variable $${step.variable} expected ${step.op} "${step.value}" but was "${stored}"`);
+        const result = step.negated ? !match : match;
+        if (!result) throw new Error(`Variable $${step.variable} expected ${step.negated ? 'not ' : ''}${step.op} "${step.value}" but was "${stored}"`);
     }
 
     private async _execStore(step: any): Promise<void> {
@@ -504,12 +534,15 @@ export class Executor {
                     if (a.op === 'has-prop')   return `has prop "${a.name}" equals "${a.value}"`;
                     if (a.op === 'has-attr')   return a.value ? `has attr "${a.name}" equals "${a.value}"` : `has attr "${a.name}" is ${a.state}`;
                     if (a.op === 'has-count')  return `has count ${a.count}`;
+                    if (a.op === 'is-empty')   return 'is empty';
+                    if (a.op === 'has-aria')   return `has aria-${a.name} "${a.value}"`;
+                    if (a.op === 'has-role')   return `has role "${a.role}"`;
                     return op;
                 })();
                 return `check ${s.element.value} ${s.negated ? 'not ' : ''}${detail}`;
             }
             case 'assert-variable':
-                return `check $${s.variable} ${s.op} "${s.value}"`;
+                return `check $${s.variable} ${s.negated ? 'not ' : ''}${s.op} "${s.value}"`;
             case 'store':
                 return `store ${s.element.value} ${s.capture} as $${s.variable}`;
             case 'within':
@@ -520,6 +553,10 @@ export class Executor {
                 return `fixture "${s.name}" is applied`;
             case 'register-spy':
                 return `register spy "${s.name}"${s.returnValue !== undefined ? ` returning "${s.returnValue}"` : ''}`;
+            case 'reset-spy':
+                return `reset spy "${s.name}"`;
+            case 'take-screenshot':
+                return `take screenshot${s.name ? ` "${s.name}"` : ''}`;
             case 'assert-spy': {
                 const a = s.assertion;
                 const detail = (() => {

@@ -13,8 +13,10 @@ import type {
     TypeAction, ClickAction, SelectAction, ClearAction,
     HoverAction, ScrollAction, WaitForAction, WaitMsAction,
     NavigateAction, ReloadAction, PressAction, FocusAction,
+    BlurAction, FillAction,
     LoadComponentStep, ApplyFixtureStep,
-    RegisterSpyStep, AssertSpyStep, SpyAssertionKind,
+    RegisterSpyStep, ResetSpyStep, AssertSpyStep, SpyAssertionKind,
+    TakeScreenshotStep,
     AssertElementStep, AssertVariableStep,
     Loc,
 } from './ast.js';
@@ -176,6 +178,10 @@ export class Parser {
             case 'COMPONENT':return this._parseLoadComponentStep();
             case 'FIXTURE':  return this._parseApplyFixtureStep();
             case 'REGISTER': return this._parseRegisterSpyStep();
+            case 'RESET':    return this._parseResetSpyStep();
+            case 'BLUR':     return this._parseBlurStep();
+            case 'FILL':     return this._parseFillStep();
+            case 'TAKE':     return this._parseTakeScreenshotStep();
             case 'IDENT':
                 // Handle "double-click" and "right-click" as IDENT tokens
                 if (tok.value.toLowerCase() === 'double-click') return this._parseClickStep('double-click');
@@ -209,10 +215,12 @@ export class Parser {
     private _parseSelectStep(): Step {
         const loc = this._loc();
         this._expect('SELECT');
-        const value   = this._expectString('"option to select"');
-        this._expect('IN');
+        let by: 'label' | 'value' = 'label';
+        if (this._at('VALUE')) { this._advance(); by = 'value'; }
+        const value   = this._expectString('"option text or value"');
+        this._tryExpect('IN');
         const element = this._parseElementRef();
-        return { kind: 'action', action: 'select', element, value, loc } as SelectAction & { kind: 'action' };
+        return { kind: 'action', action: 'select', element, value, by, loc } as SelectAction & { kind: 'action' };
     }
 
     private _parseClearStep(): Step {
@@ -300,13 +308,14 @@ export class Parser {
             return { kind: 'assert-spy', spyName, assertion, loc } satisfies AssertSpyStep;
         }
 
-        // check $var equals/matches "..."
+        // check $var [not] equals/matches "..."
         if (this._at('VARIABLE')) {
             const variable = this._advance().value;
+            const negated  = this._at('NOT') ? (this._advance(), true) : false;
             const op = this._at('EQUALS') ? (this._advance(), 'equals' as const)
                                           : (this._expect('MATCHES'), 'matches' as const);
             const value = this._expectString('"expected value"');
-            return { kind: 'assert-variable', variable, op, value, loc } satisfies AssertVariableStep;
+            return { kind: 'assert-variable', variable, op, value, negated, loc } satisfies AssertVariableStep;
         }
 
         const element = this._parseElementRef();
@@ -363,6 +372,17 @@ export class Parser {
                 const value = this._expectString('"prop value"');
                 return { op: 'has-prop', name, value };
             }
+            if (this._at('ARIA')) {
+                this._advance();
+                const name  = this._expectString('"aria attribute name"');
+                const value = this._expectString('"expected value"');
+                return { op: 'has-aria', name, value };
+            }
+            if (this._at('ROLE_KW')) {
+                this._advance();
+                const role = this._expectString('"role name"');
+                return { op: 'has-role', role };
+            }
             if (this._at('ATTR')) {
                 this._advance();
                 const name = this._expectString('"attr name"');
@@ -412,6 +432,10 @@ export class Parser {
             this._advance();
             return { op: 'is-input-state', state: INPUT_STATE[tok.type] as InputState };
         }
+        if (tok.type === 'EMPTY') {
+            this._advance();
+            return { op: 'is-empty' };
+        }
         throw new ParseError(`Unknown state keyword: "${tok.value}"`, this._loc());
     }
 
@@ -451,6 +475,34 @@ export class Parser {
         return { kind: 'action', action: 'focus', element, loc } as FocusAction & { kind: 'action' };
     }
 
+    // ── Blur / Fill steps ──────────────────────────────────────────────────
+
+    private _parseBlurStep(): Step {
+        const loc = this._loc();
+        this._expect('BLUR');
+        const element = this._parseElementRef();
+        return { kind: 'action', action: 'blur', element, loc } as BlurAction & { kind: 'action' };
+    }
+
+    private _parseFillStep(): Step {
+        const loc = this._loc();
+        this._expect('FILL');
+        const value   = this._expectString('"text to fill"');
+        this._expect('INTO');
+        const element = this._parseElementRef();
+        return { kind: 'action', action: 'fill', element, value, loc } as FillAction & { kind: 'action' };
+    }
+
+    // ── Screenshot step ──────────────────────────────────────────────────
+
+    private _parseTakeScreenshotStep(): Step {
+        const loc = this._loc();
+        this._expect('TAKE');
+        this._expect('SCREENSHOT');
+        const name = this._at('STRING') ? this._advance().value : undefined;
+        return { kind: 'take-screenshot', name, loc } satisfies TakeScreenshotStep;
+    }
+
     // ── Spy steps ──────────────────────────────────────────────────────────────
 
     private _parseRegisterSpyStep(): Step {
@@ -464,6 +516,14 @@ export class Parser {
             returnValue = this._expectString('"return value"');
         }
         return { kind: 'register-spy', name, returnValue, loc } satisfies RegisterSpyStep;
+    }
+
+    private _parseResetSpyStep(): Step {
+        const loc = this._loc();
+        this._expect('RESET');
+        this._expect('SPY');
+        const name = this._expectString('"spy name"');
+        return { kind: 'reset-spy', name, loc } satisfies ResetSpyStep;
     }
 
     private _parseSpyAssertion(): SpyAssertionKind {
