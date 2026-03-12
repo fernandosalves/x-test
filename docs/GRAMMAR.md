@@ -58,25 +58,29 @@ ActionStep  ← TypeAction
             / ReloadAction
 
 TypeAction  ← "type" String "into" ElementRef
+FillAction  ← "fill" String "into" ElementRef
 ClickAction ← "click" ElementRef
             / "double-click" ElementRef
             / "right-click" ElementRef
-SelectAction← "select" String "in" ElementRef
+SelectAction← "select" ("value")? String "in" ElementRef
 ClearAction ← "clear" ElementRef
 WaitAction  ← "wait" "for" ElementRef (Number "ms")?
             / "wait" Number "ms"
 HoverAction ← "hover" ElementRef
 ScrollAction← "scroll" "to" ElementRef
 FocusAction ← "focus" ElementRef
+BlurAction  ← "blur" ElementRef
 ReloadAction← "reload" "page"
              / "navigate" "to" String
+Screenshot  ← "take" "screenshot" String?
 
 AssertStep  ← "check" ElementRef Assertion
-            / "check" Variable "equals" String
-            / "check" Variable "matches" String
+            / "check" Variable ("not")? "equals" String
+            / "check" Variable ("not")? "matches" String
             / "check" "spy" String SpyAssertion
 
 SpyStep     ← "register" "spy" String ("returning" String)?
+            / "reset" "spy" String
 
 SpyAssertion← "was" "called"
             / "was" ("not" / "never") "called"
@@ -91,14 +95,17 @@ Negation    ← "is" "not" / "not"
 
 AssertionOp ← "is" Visibility
             / "is" InputState
+            / "is" "empty"
             / "contains" String
             / "has" "value" String
             / "has" "text"  String
             / "has" "focus"
             / "has" "class" String
             / "has" "count" Number
-            / "has" "prop" String "equals" String
-            / "has" "attr" String ("equals" String / "is" ("present"/"absent"))
+            / "has" "prop"  String "equals" String
+            / "has" "attr"  String ("equals" String / "is" ("present"/"absent"))
+            / "has" "aria"  String String
+            / "has" "role"  String
             / "matches" String
 
 Visibility  ← "visible" / "hidden" / "absent" / "present"
@@ -279,10 +286,22 @@ check <element> is readonly
 # Variable assertions
 check $var equals "text"
 check $var matches "regex pattern"
+check $var not equals "text"       # negated
+check $var not matches "pattern"   # negated
 
 # Element count
 check <element> has count 3
 check <element> has count 0      # assert no matches
+
+# Emptiness
+check <element> is empty         # value="" for inputs; trimmed text="" for others
+check <element> not is empty
+
+# ARIA
+check <element> has aria "label" "Submit form"    # checks aria-label attribute
+check <element> has aria "labelledby" "my-id"     # checks any aria-* attribute
+check <element> has role "button"                 # checks role attribute
+check <element> not has role "link"
 
 # Any assertion can be negated
 check <element> not has prop "type" equals "password"
@@ -345,8 +364,12 @@ suite LoginForm
 ```
 # Input
 type "text" into <element>         # sets value + fires input/change events
+fill "text" into <element>         # clear + type in one step (replaces existing)
 clear <element>                    # clears value
+
+# Selection
 select "Option Label" in <element> # selects <option> by visible text
+select value "v2" in <element>     # selects <option> by value attribute
 
 # Pointer & focus
 click <element>
@@ -354,6 +377,7 @@ double-click <element>
 right-click <element>
 hover <element>
 focus <element>                    # move focus without clicking
+blur <element>                     # remove focus, fire blur/focusout events
 
 # Keyboard
 press "Enter"
@@ -373,6 +397,10 @@ reload page
 wait for <element>              # waits until visible (default timeout: 5000ms)
 wait for <element> 3000 ms      # waits up to 3000ms
 wait 500 ms
+
+# Debugging
+take screenshot
+take screenshot "my-screenshot"    # saves as my-screenshot.png (Playwright only)
 ```
 
 ---
