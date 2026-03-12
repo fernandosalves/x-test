@@ -241,6 +241,142 @@ describe('Executor — mock with error status', () => {
     });
 });
 
+// ── 9. Parser — mock with delay ───────────────────────────────────────────────
+
+describe('Parser — mock with delay', () => {
+    it('parses "with delay N ms"', () => {
+        const src = `suite S\n  scenario "t"\n    mock GET "/api/users" with delay 500 ms returning "[]"\n`;
+        const step = parseXTest(src).suites[0]!.scenarios[0]!.steps[0] as any;
+        expect(step.delayMs).toBe(500);
+        expect(step.status).toBe(200);
+    });
+
+    it('parses "with status N with delay N"', () => {
+        const src = `suite S\n  scenario "t"\n    mock POST "/api/login" with status 401 with delay 200 returning "{}"\n`;
+        const step = parseXTest(src).suites[0]!.scenarios[0]!.steps[0] as any;
+        expect(step.status).toBe(401);
+        expect(step.delayMs).toBe(200);
+    });
+
+    it('parses delay without ms suffix', () => {
+        const src = `suite S\n  scenario "t"\n    mock GET "/api/users" with delay 100 returning "[]"\n`;
+        const step = parseXTest(src).suites[0]!.scenarios[0]!.steps[0] as any;
+        expect(step.delayMs).toBe(100);
+    });
+
+    it('delayMs is undefined when not specified', () => {
+        const src = `suite S\n  scenario "t"\n    mock GET "/api/users" returning "[]"\n`;
+        const step = parseXTest(src).suites[0]!.scenarios[0]!.steps[0] as any;
+        expect(step.delayMs).toBeUndefined();
+    });
+});
+
+// ── 10. Parser — wait for function ───────────────────────────────────────────
+
+describe('Parser — wait for function', () => {
+    it('parses with default timeout', () => {
+        const src = `suite S\n  scenario "t"\n    wait for function "loadData"\n`;
+        const step = parseXTest(src).suites[0]!.scenarios[0]!.steps[0] as any;
+        expect(step.kind).toBe('await-function');
+        expect(step.name).toBe('loadData');
+        expect(step.timeoutMs).toBe(5000);
+    });
+
+    it('parses with explicit timeout', () => {
+        const src = `suite S\n  scenario "t"\n    wait for function "initApp" 3000 ms\n`;
+        const step = parseXTest(src).suites[0]!.scenarios[0]!.steps[0] as any;
+        expect(step.kind).toBe('await-function');
+        expect(step.timeoutMs).toBe(3000);
+    });
+});
+
+// ── 11. Executor — mock with delay ────────────────────────────────────────────
+
+describe('Executor — mock with delay', () => {
+    it('still serves the correct response after delay', async () => {
+        const { Executor } = await import('../runner/runner.js');
+        const { JSDOMRunner } = await import('../runner/jsdom-runner.js');
+        const src = [
+            `suite S`,
+            `  scenario "t"`,
+            `    mock GET "/api/users" with delay 80 ms returning "{ \\"users\\": [\\"Ada\\"] }"`,
+            `    click load-btn`,
+            `    wait 200 ms`,
+            `    check result contains "Ada"`,
+            `    check request "GET /api/users" was made`,
+        ].join('\n') + '\n';
+        const runner = new JSDOMRunner();
+        const r = await new Executor(runner, MANIFEST).runFile(parseXTest(src), FETCH_HTML);
+        await runner.teardown();
+        expect(r.passed).toBe(true);
+    });
+});
+
+// ── 12. Executor — wait for function ─────────────────────────────────────────
+
+describe('Executor — wait for function', () => {
+    it('awaits a global async function', async () => {
+        const { Executor } = await import('../runner/runner.js');
+        const { JSDOMRunner } = await import('../runner/jsdom-runner.js');
+        const HTML_ASYNC = `<!DOCTYPE html><html><body>
+          <div data-xtest="result">pending</div>
+          <script>
+            window.loadData = async function() {
+              await new Promise(r => setTimeout(r, 20));
+              document.querySelector('[data-xtest=result]').textContent = 'done';
+            };
+          </script>
+        </body></html>`;
+        const src = [
+            `suite S`,
+            `  scenario "t"`,
+            `    wait for function "loadData" 2000 ms`,
+            `    check result contains "done"`,
+        ].join('\n') + '\n';
+        const runner = new JSDOMRunner();
+        const r = await new Executor(runner, MANIFEST).runFile(parseXTest(src), HTML_ASYNC);
+        await runner.teardown();
+        expect(r.passed).toBe(true);
+    });
+
+    it('FAILS on timeout', async () => {
+        const { Executor } = await import('../runner/runner.js');
+        const { JSDOMRunner } = await import('../runner/jsdom-runner.js');
+        const HTML_SLOW = `<!DOCTYPE html><html><body>
+          <script>
+            window.slowFn = async function() {
+              await new Promise(r => setTimeout(r, 10000));
+            };
+          </script>
+        </body></html>`;
+        const src = [
+            `suite S`,
+            `  scenario "t"`,
+            `    wait for function "slowFn" 50 ms`,
+        ].join('\n') + '\n';
+        const runner = new JSDOMRunner();
+        const r = await new Executor(runner, MANIFEST).runFile(parseXTest(src), HTML_SLOW);
+        await runner.teardown();
+        expect(r.passed).toBe(false);
+        const step = r.suites[0]!.scenarios[0]!.steps[0]!;
+        expect(step.error).toMatch(/Timeout/);
+    });
+
+    it('FAILS when function does not exist', async () => {
+        const { Executor } = await import('../runner/runner.js');
+        const { JSDOMRunner } = await import('../runner/jsdom-runner.js');
+        const src = [
+            `suite S`,
+            `  scenario "t"`,
+            `    wait for function "nonExistent"`,
+        ].join('\n') + '\n';
+        const runner = new JSDOMRunner();
+        const r = await new Executor(runner, MANIFEST).runFile(parseXTest(src), `<!DOCTYPE html><html><body></body></html>`);
+        await runner.teardown();
+        expect(r.passed).toBe(false);
+    });
+});
+
 describe('Executor — mocks auto-reset between scenarios', () => {
     it('mocks from scenario 1 do not bleed into scenario 2', async () => {
         const { Executor } = await import('../runner/runner.js');

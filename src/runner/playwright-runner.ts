@@ -251,16 +251,19 @@ export class PlaywrightRunner implements MiuraRunner {
         });
     }
 
-    async mockRequest(method: string, url: string, status: number, body?: string): Promise<void> {
+    async mockRequest(method: string, url: string, status: number, body?: string, delayMs?: number): Promise<void> {
         const key = `${method.toUpperCase()} ${url}`;
-        this._mockRoutes.set(key, { status, body });
+        const entry: { status: number; body: string | undefined; delayMs?: number } = { status, body };
+        if (delayMs !== undefined) entry.delayMs = delayMs;
+        this._mockRoutes.set(key, entry);
         const calls = this._requestLog.get(key) ?? [];
         this._requestLog.set(key, calls);
-        await (this._page as any).route(url, (route: any) => {
+        await (this._page as any).route(url, async (route: any) => {
             if (route.request().method().toUpperCase() !== method.toUpperCase()) {
                 return route.continue();
             }
             calls.push({ method: method.toUpperCase(), url, body: route.request().postData() ?? '' });
+            if (delayMs) await new Promise(r => setTimeout(r, delayMs));
             route.fulfill({ status, body: body ?? '', contentType: 'application/json' });
         });
     }
@@ -273,6 +276,14 @@ export class PlaywrightRunner implements MiuraRunner {
         this._mockRoutes.clear();
         this._requestLog.clear();
         await (this._page as any).unrouteAll?.();
+    }
+
+    async awaitFunction(name: string, timeoutMs: number): Promise<void> {
+        await (this._page as any).waitForFunction(
+            (n: string) => typeof (window as any)[n] === 'function' && (window as any)[n](),
+            name,
+            { timeout: timeoutMs },
+        );
     }
 
     async screenshot(name?: string): Promise<void> {

@@ -16,7 +16,7 @@ export class JSDOMRunner implements MiuraRunner {
     private _timeout:    number;
     private _scopeStack: Element[] = [];
     private _spyRegistry:    Map<string, SpyCall[]>          = new Map();
-    private _mockRegistry:   Map<string, { status: number; body: string | undefined }> = new Map();
+    private _mockRegistry:   Map<string, { status: number; body: string | undefined; delayMs?: number }> = new Map();
     private _requestLog:     Map<string, { method: string; url: string; body: string }[]>       = new Map();
 
     constructor(opts: { timeout?: number } = {}) {
@@ -40,6 +40,9 @@ export class JSDOMRunner implements MiuraRunner {
             // Serve mock if registered
             const mock = self._mockRegistry.get(key);
             if (mock) {
+                if (mock.delayMs) {
+                    await new Promise(r => setTimeout(r, mock.delayMs));
+                }
                 return new Response(mock.body ?? '', {
                     status:  mock.status,
                     headers: { 'Content-Type': 'application/json' },
@@ -253,8 +256,10 @@ export class JSDOMRunner implements MiuraRunner {
         // JSDOM has no rendering — screenshot is a no-op
     }
 
-    async mockRequest(method: string, url: string, status: number, body?: string): Promise<void> {
-        this._mockRegistry.set(`${method.toUpperCase()} ${url}`, { status, body });
+    async mockRequest(method: string, url: string, status: number, body?: string, delayMs?: number): Promise<void> {
+        const entry: { status: number; body: string | undefined; delayMs?: number } = { status, body };
+        if (delayMs !== undefined) entry.delayMs = delayMs;
+        this._mockRegistry.set(`${method.toUpperCase()} ${url}`, entry);
     }
 
     async getRequestCalls(method: string, url: string): Promise<import('../parser/ast.js').RequestCall[]> {
@@ -264,6 +269,18 @@ export class JSDOMRunner implements MiuraRunner {
     async clearRequestMocks(): Promise<void> {
         this._mockRegistry.clear();
         this._requestLog.clear();
+    }
+
+    async awaitFunction(name: string, timeoutMs: number): Promise<void> {
+        if (!this._window) throw new Error(`[miura] No window — call mount() first`);
+        const fn = (this._window as any)[name];
+        if (typeof fn !== 'function') throw new Error(`[miura] window.${name} is not a function`);
+        await Promise.race([
+            Promise.resolve(fn()),
+            new Promise<never>((_, reject) =>
+                setTimeout(() => reject(new Error(`[miura] Timeout waiting for function "${name}" (${timeoutMs}ms)`)), timeoutMs)
+            ),
+        ]);
     }
 
     async isFocusable(selector: string): Promise<boolean> {

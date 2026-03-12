@@ -5,7 +5,7 @@
  * The Executor ties together the Parser, Resolver, and Runner to run a full suite.
  */
 
-import type { XTestFile, SuiteNode, ScenarioNode, Step, ActionStep, ElementRef, WithinStep, LoadComponentStep, ApplyFixtureStep, RegisterSpyStep, ResetSpyStep, AssertSpyStep, SpyCall, TakeScreenshotStep, CheckA11yStep, A11yViolation, MockRequestStep, AssertRequestStep, RequestCall } from '../parser/ast.js';
+import type { XTestFile, SuiteNode, ScenarioNode, Step, ActionStep, ElementRef, WithinStep, LoadComponentStep, ApplyFixtureStep, RegisterSpyStep, ResetSpyStep, AssertSpyStep, SpyCall, TakeScreenshotStep, CheckA11yStep, A11yViolation, MockRequestStep, AssertRequestStep, RequestCall, AwaitFunctionStep } from '../parser/ast.js';
 import type { SurfaceManifest } from '../manifest/types.js';
 import { Resolver, type ResolutionResult } from '../resolver/resolver.js';
 
@@ -75,11 +75,13 @@ export interface MiuraRunner {
     /** Run an axe-core accessibility scan and return any violations. */
     checkA11y(selector?: string): Promise<A11yViolation[]>;
     /** Register a network mock for fetch/XHR interception. */
-    mockRequest(method: string, url: string, status: number, body?: string): Promise<void>;
+    mockRequest(method: string, url: string, status: number, body?: string, delayMs?: number): Promise<void>;
     /** Return all recorded calls to a given method+url. */
     getRequestCalls(method: string, url: string): Promise<RequestCall[]>;
     /** Clear all registered mocks and call logs. */
     clearRequestMocks(): Promise<void>;
+    /** Call window[name]() and await its return value, failing if it doesn't resolve within timeoutMs. */
+    awaitFunction(name: string, timeoutMs: number): Promise<void>;
     /** Register a named spy on the window/global object and return its recorded calls. */
     registerSpy(name: string, returnValue?: string): Promise<void>;
     /** Get all recorded calls for a named spy. */
@@ -316,8 +318,9 @@ export class Executor {
             case 'assert-spy':      return this._execAssertSpy(step as AssertSpyStep);
             case 'take-screenshot': return this._runner.screenshot((step as TakeScreenshotStep).name);
             case 'check-a11y':      return this._execCheckA11y(step as CheckA11yStep);
-            case 'mock-request':    return this._runner.mockRequest((step as MockRequestStep).method, (step as MockRequestStep).url, (step as MockRequestStep).status, (step as MockRequestStep).body);
+            case 'mock-request':    { const m = step as MockRequestStep; return this._runner.mockRequest(m.method, m.url, m.status, m.body, m.delayMs); }
             case 'assert-request':  return this._execAssertRequest(step as AssertRequestStep);
+            case 'await-function':  return this._runner.awaitFunction((step as AwaitFunctionStep).name, (step as AwaitFunctionStep).timeoutMs);
         }
     }
 
@@ -624,7 +627,9 @@ export class Executor {
             case 'check-a11y':
                 return `check ${s.selector ?? 'page'} has no a11y violations`;
             case 'mock-request':
-                return `mock ${s.method} "${s.url}"${s.status !== 200 ? ` with status ${s.status}` : ''}${s.body ? ` returning "${s.body}"` : ''}`;
+                return `mock ${s.method} "${s.url}"${s.status !== 200 ? ` with status ${s.status}` : ''}${s.delayMs ? ` with delay ${s.delayMs}ms` : ''}${s.body ? ` returning "${s.body}"` : ''}`;
+            case 'await-function':
+                return `wait for function "${s.name}" ${s.timeoutMs}ms`;
             case 'assert-request': {
                 const ra = s.assertion;
                 const rdetail = ra.op === 'was-made' ? 'was made'

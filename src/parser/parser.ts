@@ -17,7 +17,7 @@ import type {
     LoadComponentStep, ApplyFixtureStep,
     RegisterSpyStep, ResetSpyStep, AssertSpyStep, SpyAssertionKind,
     TakeScreenshotStep, CheckA11yStep, A11yViolation,
-    MockRequestStep, AssertRequestStep, RequestAssertionKind, RequestCall,
+    MockRequestStep, AssertRequestStep, RequestAssertionKind, RequestCall, AwaitFunctionStep,
     AssertElementStep, AssertVariableStep,
     Loc,
 } from './ast.js';
@@ -256,6 +256,17 @@ export class Parser {
             return { kind: 'action', action: 'wait-ms', ms, loc } as WaitMsAction & { kind: 'action' };
         }
         this._tryExpect('FOR');
+        // wait for function "name" [N ms]
+        if (this._at('FUNCTION_KW')) {
+            this._advance();
+            const name = this._expectString('"function name"');
+            let timeoutMs = 5000;
+            if (this._at('NUMBER')) {
+                timeoutMs = Number(this._advance().value);
+                this._tryExpect('MS');
+            }
+            return { kind: 'await-function', name, timeoutMs, loc } satisfies AwaitFunctionStep;
+        }
         const element = this._parseElementRef();
         // optional inline timeout: wait for submit-button 3000 ms
         let timeoutMs: number | undefined;
@@ -519,20 +530,35 @@ export class Parser {
         const url    = this._expectString('"url"');
         let status   = 200;
         let body: string | undefined;
-        // optional: with status N
-        if (this._at('WITH_KW')) {
-            this._advance();
-            // expect STATUS keyword — tokenised as IDENT
-            if (this._at('IDENT') && this._peek()!.value === 'status') this._advance();
-            if (!this._at('NUMBER')) throw new ParseError('Expected status code after "with status"', this._loc());
-            status = Number(this._advance().value);
+        // optional modifiers: "with status N" and/or "with delay N ms" in any order
+        let delayMs: number | undefined;
+        while (this._at('WITH_KW') || this._at('DELAY') || (this._at('IDENT') && this._peek()!.value === 'status')) {
+            if (this._at('WITH_KW')) {
+                this._advance();
+                if (this._at('DELAY')) {
+                    this._advance();
+                    if (!this._at('NUMBER')) throw new ParseError('Expected delay in ms', this._loc());
+                    delayMs = Number(this._advance().value);
+                    this._tryExpect('MS');
+                    continue;
+                }
+                // "with status N"
+                if (this._at('IDENT') && this._peek()!.value === 'status') this._advance();
+                if (!this._at('NUMBER')) throw new ParseError('Expected status code', this._loc());
+                status = Number(this._advance().value);
+            } else if (this._at('DELAY')) {
+                this._advance();
+                if (!this._at('NUMBER')) throw new ParseError('Expected delay in ms', this._loc());
+                delayMs = Number(this._advance().value);
+                this._tryExpect('MS');
+            }
         }
         // optional: returning "body"
         if (this._at('RETURNING')) {
             this._advance();
             body = this._expectString('"response body"');
         }
-        return { kind: 'mock-request', method, url, status, body, loc } satisfies MockRequestStep;
+        return { kind: 'mock-request', method, url, status, body, delayMs, loc } satisfies MockRequestStep;
     }
 
     private _parseAssertRequestStep(loc: Loc): Step {

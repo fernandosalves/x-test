@@ -82,8 +82,13 @@ AssertStep  ← "check" ElementRef Assertion
 SpyStep     ← "register" "spy" String ("returning" String)?
             / "reset" "spy" String
 
-MockStep    ← "mock" Method String ("with" "status" Number)? ("returning" String)?
+MockStep    ← "mock" Method String MockModifier* ("returning" String)?
+MockModifier← "with" "status" Number
+            / "with" "delay" Number "ms"?
+            / "delay" Number "ms"?
 Method      ← "GET" / "POST" / "PUT" / "PATCH" / "DELETE" / "HEAD"
+
+WaitFnStep  ← "wait" "for" "function" String (Number "ms"?)?   -- default timeout 5000ms
 
 RequestStep ← "check" "request" String RequestAssertion
 RequestAssertion
@@ -130,7 +135,7 @@ InputState  ← "enabled" / "disabled" / "checked" / "unchecked" / "readonly" / 
 StoreStep   ← "store" ElementRef "text" "as" Variable
             / "store" ElementRef "value" "as" Variable
 
-Step        ← ActionStep / AssertStep / StoreStep / SpyStep / MockStep / RequestStep / PressStep / NavigateStep / WithinStep
+Step        ← ActionStep / AssertStep / StoreStep / SpyStep / MockStep / RequestStep / WaitFnStep / PressStep / NavigateStep / WithinStep
 
 PressStep   ← "press" Key
 Key         ← String      -- "Enter", "Tab", "Escape", "ArrowDown" etc.
@@ -428,8 +433,31 @@ mock DELETE "/api/item/1" with status 204
 
 - Method is case-insensitive (`GET`, `get`, `Get` all work)
 - `with status N` is optional — defaults to `200`
+- `with delay N ms` is optional — simulates network latency (in ms)
+- Both modifiers can appear together in any order
 - `returning "body"` is optional — defaults to empty body
 - Unregistered requests throw a clear error: `[miura] No mock registered for GET /api/data`
+
+### Mock with delay
+
+Simulate a slow API to test loading states:
+
+```
+mock GET "/api/users" with delay 800 ms returning "{ \"users\": [] }"
+mock POST "/api/login" with status 503 with delay 2000 returning "{ \"error\": \"Service unavailable\" }"
+```
+
+### `wait for function "name" [N ms]`
+
+Calls `window.name()` and awaits its return value. Useful after triggering fetch-based actions so you can wait for the Promise chain to settle before asserting on the DOM. Default timeout is **5000 ms**.
+
+```
+wait for function "loadData"                # 5s timeout
+wait for function "initApp" 3000 ms         # custom timeout
+wait for function "submitForm" 10000 ms
+```
+
+Fails with a clear timeout message if the function doesn't resolve in time, or with a type error if `window.name` is not a function.
 
 ### Asserting on requests
 

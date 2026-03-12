@@ -174,7 +174,15 @@ export interface MockRequestStep {
     url:     string;
     status:  number;
     body:    string | undefined;
+    delayMs: number | undefined;
     loc:     Loc;
+}
+
+export interface AwaitFunctionStep {
+    kind:      'await-function';
+    name:      string;
+    timeoutMs: number;
+    loc:       Loc;
 }
 
 export interface RequestCall {
@@ -229,7 +237,8 @@ export type Step =
     | TakeScreenshotStep
     | CheckA11yStep
     | MockRequestStep
-    | AssertRequestStep;
+    | AssertRequestStep
+    | AwaitFunctionStep;
 
 // ── Scenario ────────────────────────────────────────────────────────────────────
 
