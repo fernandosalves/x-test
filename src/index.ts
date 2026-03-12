@@ -16,6 +16,7 @@ export type {
     LoadComponentStep, ApplyFixtureStep, FocusAction, BlurAction, FillAction,
     RegisterSpyStep, ResetSpyStep, AssertSpyStep, SpyCall, SpyAssertionKind,
     TakeScreenshotStep, CheckA11yStep, A11yViolation,
+    MockRequestStep, AssertRequestStep, RequestAssertionKind, RequestCall,
     ElementRef, AssertionKind, Loc,
 } from './parser/ast.js';
 

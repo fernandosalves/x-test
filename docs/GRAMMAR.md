@@ -82,6 +82,17 @@ AssertStep  ← "check" ElementRef Assertion
 SpyStep     ← "register" "spy" String ("returning" String)?
             / "reset" "spy" String
 
+MockStep    ← "mock" Method String ("with" "status" Number)? ("returning" String)?
+Method      ← "GET" / "POST" / "PUT" / "PATCH" / "DELETE" / "HEAD"
+
+RequestStep ← "check" "request" String RequestAssertion
+RequestAssertion
+            ← "was" "made"
+            / "was" ("not" / "never") ("made" / "called")
+            / "was" "called" "once"
+            / "was" "called" Number "times"
+            / "was" "called" "with" String
+
 SpyAssertion← "was" "called"
             / "was" ("not" / "never") "called"
             / "was" "called" "once"
@@ -119,7 +130,7 @@ InputState  ← "enabled" / "disabled" / "checked" / "unchecked" / "readonly" / 
 StoreStep   ← "store" ElementRef "text" "as" Variable
             / "store" ElementRef "value" "as" Variable
 
-Step        ← ActionStep / AssertStep / StoreStep / SpyStep / PressStep / NavigateStep / WithinStep
+Step        ← ActionStep / AssertStep / StoreStep / SpyStep / MockStep / RequestStep / PressStep / NavigateStep / WithinStep
 
 PressStep   ← "press" Key
 Key         ← String      -- "Enter", "Tab", "Escape", "ArrowDown" etc.
@@ -399,6 +410,76 @@ suite Accessibility — Login Form
     check logo has alt "Acme Inc."
     check logo not has alt ""
 ```
+
+---
+
+## Network Mocks
+
+Miura intercepts `fetch` (JSDOM) or uses `page.route()` (Playwright) automatically — no MSW setup required. Mocks and call logs **auto-reset between scenarios**.
+
+### Registering mocks
+
+```
+mock GET "/api/users" returning "{ \"users\": [] }"
+mock POST "/api/login" returning "{ \"token\": \"abc123\" }"
+mock POST "/api/login" with status 401 returning "{ \"error\": \"Unauthorized\" }"
+mock DELETE "/api/item/1" with status 204
+```
+
+- Method is case-insensitive (`GET`, `get`, `Get` all work)
+- `with status N` is optional — defaults to `200`
+- `returning "body"` is optional — defaults to empty body
+- Unregistered requests throw a clear error: `[miura] No mock registered for GET /api/data`
+
+### Asserting on requests
+
+The request identifier is `"METHOD url"` as a single string:
+
+```
+check request "GET /api/users" was made
+check request "GET /api/users" was not made
+check request "POST /api/login" was called once
+check request "POST /api/login" was called 3 times
+check request "POST /api/login" was called with "ada@example.com"
+```
+
+### Full scenario example
+
+```
+suite User Dashboard
+
+  scenario "loads and displays users"
+    mock GET "/api/users" returning "{ \"users\": [{ \"id\": 1, \"name\": \"Ada\" }] }"
+    navigate to "http://localhost:3000"
+    wait 50 ms
+    check user-list contains "Ada"
+    check request "GET /api/users" was called once
+
+  scenario "shows empty state when no users"
+    mock GET "/api/users" returning "{ \"users\": [] }"
+    navigate to "http://localhost:3000"
+    wait 50 ms
+    check empty-state is visible
+    check request "GET /api/users" was made
+
+  scenario "handles login error"
+    mock POST "/api/login" with status 401 returning "{ \"error\": \"Unauthorized\" }"
+    fill "wrong@test.com" into email-input
+    click login-btn
+    wait 50 ms
+    check error-banner is visible
+    check error-banner contains "Unauthorized"
+    check request "POST /api/login" was called with "wrong@test.com"
+
+  scenario "mocks do not bleed between scenarios"
+    mock GET "/api/users" returning "[]"
+    check request "GET /api/users" was not made    # auto-reset: previous scenario's calls are gone
+```
+
+**Notes:**
+- `wait N ms` after triggering a fetch gives the async Promise chain time to settle and update the DOM
+- `was called with "text"` does a substring match against the serialised request body
+- Mocks are matched by exact `METHOD url` key — query strings must be included if present: `mock GET "/api/users?page=2" returning "..."`
 
 ---
 

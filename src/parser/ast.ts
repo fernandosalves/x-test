@@ -166,6 +166,37 @@ export interface CheckA11yStep {
     loc:      Loc;
 }
 
+// ── Network mocks ───────────────────────────────────────────────────────────────
+
+export interface MockRequestStep {
+    kind:    'mock-request';
+    method:  string;
+    url:     string;
+    status:  number;
+    body:    string | undefined;
+    loc:     Loc;
+}
+
+export interface RequestCall {
+    method: string;
+    url:    string;
+    body:   string;
+}
+
+export type RequestAssertionKind =
+    | { op: 'was-made' }
+    | { op: 'was-not-made' }
+    | { op: 'was-made-times'; count: number }
+    | { op: 'was-made-with'; body: string };
+
+export interface AssertRequestStep {
+    kind:      'assert-request';
+    method:    string;
+    url:       string;
+    assertion: RequestAssertionKind;
+    loc:       Loc;
+}
+
 // ── Screenshot ─────────────────────────────────────────────────────────────────
 
 export interface TakeScreenshotStep {
@@ -196,7 +227,9 @@ export type Step =
     | ResetSpyStep
     | AssertSpyStep
     | TakeScreenshotStep
-    | CheckA11yStep;
+    | CheckA11yStep
+    | MockRequestStep
+    | AssertRequestStep;
 
 // ── Scenario ────────────────────────────────────────────────────────────────────
 

@@ -5,7 +5,7 @@
  * The Executor ties together the Parser, Resolver, and Runner to run a full suite.
  */
 
-import type { XTestFile, SuiteNode, ScenarioNode, Step, ActionStep, ElementRef, WithinStep, LoadComponentStep, ApplyFixtureStep, RegisterSpyStep, ResetSpyStep, AssertSpyStep, SpyCall, TakeScreenshotStep, CheckA11yStep, A11yViolation } from '../parser/ast.js';
+import type { XTestFile, SuiteNode, ScenarioNode, Step, ActionStep, ElementRef, WithinStep, LoadComponentStep, ApplyFixtureStep, RegisterSpyStep, ResetSpyStep, AssertSpyStep, SpyCall, TakeScreenshotStep, CheckA11yStep, A11yViolation, MockRequestStep, AssertRequestStep, RequestCall } from '../parser/ast.js';
 import type { SurfaceManifest } from '../manifest/types.js';
 import { Resolver, type ResolutionResult } from '../resolver/resolver.js';
 
@@ -74,6 +74,12 @@ export interface MiuraRunner {
     getAccessibleName(selector: string): Promise<string>;
     /** Run an axe-core accessibility scan and return any violations. */
     checkA11y(selector?: string): Promise<A11yViolation[]>;
+    /** Register a network mock for fetch/XHR interception. */
+    mockRequest(method: string, url: string, status: number, body?: string): Promise<void>;
+    /** Return all recorded calls to a given method+url. */
+    getRequestCalls(method: string, url: string): Promise<RequestCall[]>;
+    /** Clear all registered mocks and call logs. */
+    clearRequestMocks(): Promise<void>;
     /** Register a named spy on the window/global object and return its recorded calls. */
     registerSpy(name: string, returnValue?: string): Promise<void>;
     /** Get all recorded calls for a named spy. */
@@ -206,6 +212,7 @@ export class Executor {
             if (html && scenarios.filter(s => !s.skipped).length > 0) await this._runner.mount(html);
             this._vars.clear();
             await this._runner.resetAllSpies();
+            await this._runner.clearRequestMocks();
 
             // beforeEach
             for (const step of suite.beforeEach) {
@@ -309,6 +316,8 @@ export class Executor {
             case 'assert-spy':      return this._execAssertSpy(step as AssertSpyStep);
             case 'take-screenshot': return this._runner.screenshot((step as TakeScreenshotStep).name);
             case 'check-a11y':      return this._execCheckA11y(step as CheckA11yStep);
+            case 'mock-request':    return this._runner.mockRequest((step as MockRequestStep).method, (step as MockRequestStep).url, (step as MockRequestStep).status, (step as MockRequestStep).body);
+            case 'assert-request':  return this._execAssertRequest(step as AssertRequestStep);
         }
     }
 
@@ -504,6 +513,31 @@ export class Executor {
         }
     }
 
+    private async _execAssertRequest(step: AssertRequestStep): Promise<void> {
+        const calls = await this._runner.getRequestCalls(step.method, step.url);
+        const a     = step.assertion;
+        const label = `${step.method} ${step.url}`;
+        switch (a.op) {
+            case 'was-made':
+                if (calls.length === 0) throw new Error(`[miura] Expected request ${label} to have been made, but it was never called`);
+                break;
+            case 'was-not-made':
+                if (calls.length > 0) throw new Error(`[miura] Expected request ${label} NOT to have been made, but it was called ${calls.length} time(s)`);
+                break;
+            case 'was-made-times':
+                if (calls.length !== a.count) throw new Error(`[miura] Expected request ${label} to be called ${a.count} time(s), but was called ${calls.length} time(s)`);
+                break;
+            case 'was-made-with': {
+                const match = calls.some(c => c.body.includes(a.body) || c.body === a.body);
+                if (!match) {
+                    const bodies = calls.map(c => `  "${c.body}"`).join('\n') || '  (none)';
+                    throw new Error(`[miura] Expected request ${label} to be called with:\n  "${a.body}"\nActual bodies:\n${bodies}`);
+                }
+                break;
+            }
+        }
+    }
+
     private async _execCheckA11y(step: CheckA11yStep): Promise<void> {
         const violations = await this._runner.checkA11y(step.selector);
         if (violations.length > 0) {
@@ -589,6 +623,16 @@ export class Executor {
                 return `take screenshot${s.name ? ` "${s.name}"` : ''}`;
             case 'check-a11y':
                 return `check ${s.selector ?? 'page'} has no a11y violations`;
+            case 'mock-request':
+                return `mock ${s.method} "${s.url}"${s.status !== 200 ? ` with status ${s.status}` : ''}${s.body ? ` returning "${s.body}"` : ''}`;
+            case 'assert-request': {
+                const ra = s.assertion;
+                const rdetail = ra.op === 'was-made' ? 'was made'
+                    : ra.op === 'was-not-made' ? 'was not made'
+                    : ra.op === 'was-made-times' ? `was called ${ra.count} time(s)`
+                    : `was called with "${ra.body}"`;
+                return `check request "${s.method} ${s.url}" ${rdetail}`;
+            }
             case 'assert-spy': {
                 const a = s.assertion;
                 const detail = (() => {

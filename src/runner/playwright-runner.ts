@@ -55,8 +55,10 @@ interface PwPage {
 export class PlaywrightRunner implements MiuraRunner {
     private _page:        PwPage;
     private _scopeStack:  PwLocator[] = [];
-    private _spyRegistry: Map<string, SpyCall[]> = new Map();
-    private _timeout:    number;
+    private _spyRegistry:  Map<string, SpyCall[]>                                     = new Map();
+    private _mockRoutes:   Map<string, { status: number; body: string | undefined }>  = new Map();
+    private _requestLog:   Map<string, import('../parser/ast.js').RequestCall[]>       = new Map();
+    private _timeout:      number;
 
     constructor(page: PwPage, opts: { timeout?: number } = {}) {
         this._page    = page;
@@ -247,6 +249,30 @@ export class PlaywrightRunner implements MiuraRunner {
             }
             return (el.textContent ?? '').trim() === '';
         });
+    }
+
+    async mockRequest(method: string, url: string, status: number, body?: string): Promise<void> {
+        const key = `${method.toUpperCase()} ${url}`;
+        this._mockRoutes.set(key, { status, body });
+        const calls = this._requestLog.get(key) ?? [];
+        this._requestLog.set(key, calls);
+        await (this._page as any).route(url, (route: any) => {
+            if (route.request().method().toUpperCase() !== method.toUpperCase()) {
+                return route.continue();
+            }
+            calls.push({ method: method.toUpperCase(), url, body: route.request().postData() ?? '' });
+            route.fulfill({ status, body: body ?? '', contentType: 'application/json' });
+        });
+    }
+
+    async getRequestCalls(method: string, url: string): Promise<import('../parser/ast.js').RequestCall[]> {
+        return this._requestLog.get(`${method.toUpperCase()} ${url}`) ?? [];
+    }
+
+    async clearRequestMocks(): Promise<void> {
+        this._mockRoutes.clear();
+        this._requestLog.clear();
+        await (this._page as any).unrouteAll?.();
     }
 
     async screenshot(name?: string): Promise<void> {

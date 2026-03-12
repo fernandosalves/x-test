@@ -17,6 +17,7 @@ import type {
     LoadComponentStep, ApplyFixtureStep,
     RegisterSpyStep, ResetSpyStep, AssertSpyStep, SpyAssertionKind,
     TakeScreenshotStep, CheckA11yStep, A11yViolation,
+    MockRequestStep, AssertRequestStep, RequestAssertionKind, RequestCall,
     AssertElementStep, AssertVariableStep,
     Loc,
 } from './ast.js';
@@ -182,6 +183,7 @@ export class Parser {
             case 'BLUR':     return this._parseBlurStep();
             case 'FILL':     return this._parseFillStep();
             case 'TAKE':     return this._parseTakeScreenshotStep();
+            case 'MOCK':     return this._parseMockRequestStep();
             case 'IDENT':
                 // Handle "double-click" and "right-click" as IDENT tokens
                 if (tok.value.toLowerCase() === 'double-click') return this._parseClickStep('double-click');
@@ -295,6 +297,11 @@ export class Parser {
         // check page has no a11y violations
         if (this._at('PAGE')) {
             return this._parseCheckA11yStep(loc);
+        }
+
+        // check request "METHOD url" was made / was called N times / ...
+        if (this._at('REQUEST')) {
+            return this._parseAssertRequestStep(loc);
         }
 
         // check spy "name" ...
@@ -499,6 +506,76 @@ export class Parser {
         this._expect('FOCUS_KW');
         const element = this._parseElementRef();
         return { kind: 'action', action: 'focus', element, loc } as FocusAction & { kind: 'action' };
+    }
+
+    // ── Network mock step ────────────────────────────────────────────────────
+
+    private _parseMockRequestStep(): Step {
+        const loc = this._loc();
+        this._expect('MOCK');
+        // HTTP method — comes through as IDENT (GET, POST, PUT, PATCH, DELETE)
+        if (!this._at('IDENT')) throw new ParseError('Expected HTTP method (GET, POST, PUT, …)', loc);
+        const method = this._advance().value.toUpperCase();
+        const url    = this._expectString('"url"');
+        let status   = 200;
+        let body: string | undefined;
+        // optional: with status N
+        if (this._at('WITH_KW')) {
+            this._advance();
+            // expect STATUS keyword — tokenised as IDENT
+            if (this._at('IDENT') && this._peek()!.value === 'status') this._advance();
+            if (!this._at('NUMBER')) throw new ParseError('Expected status code after "with status"', this._loc());
+            status = Number(this._advance().value);
+        }
+        // optional: returning "body"
+        if (this._at('RETURNING')) {
+            this._advance();
+            body = this._expectString('"response body"');
+        }
+        return { kind: 'mock-request', method, url, status, body, loc } satisfies MockRequestStep;
+    }
+
+    private _parseAssertRequestStep(loc: Loc): Step {
+        this._expect('REQUEST');
+        // "METHOD url" as a single string, e.g. "GET /api/users"
+        const raw    = this._expectString('"METHOD url"');
+        const [method, ...rest] = raw.trim().split(/\s+/);
+        const url    = rest.join(' ');
+        if (!method || !url) throw new ParseError('Expected "METHOD url" e.g. "GET /api/users"', loc);
+
+        let assertion: RequestAssertionKind;
+        if (this._at('WAS')) {
+            this._advance();
+            if (this._at('NOT') || this._at('NEVER_KW')) {
+                this._advance();
+                this._tryExpect('CALLED');
+                assertion = { op: 'was-not-made' };
+            } else if (this._at('CALLED')) {
+                this._advance();
+                if (this._at('ONCE')) {
+                    this._advance();
+                    assertion = { op: 'was-made-times', count: 1 };
+                } else if (this._at('NUMBER')) {
+                    const count = Number(this._advance().value);
+                    this._tryExpect('TIMES');
+                    assertion = { op: 'was-made-times', count };
+                } else if (this._at('WITH_KW')) {
+                    this._advance();
+                    const body = this._expectString('"expected request body"');
+                    assertion = { op: 'was-made-with', body };
+                } else {
+                    assertion = { op: 'was-made-times', count: 1 };
+                }
+            } else if (this._at('MADE')) {
+                this._advance();
+                assertion = { op: 'was-made' };
+            } else {
+                assertion = { op: 'was-made' };
+            }
+        } else {
+            throw new ParseError('Expected "was made", "was called", "was not made"', this._loc());
+        }
+        return { kind: 'assert-request', method: method.toUpperCase(), url, assertion, loc } satisfies AssertRequestStep;
     }
 
     // ── A11y check step ────────────────────────────────────────────────────

@@ -18,6 +18,7 @@ export type TokenType =
     | 'SPY' | 'REGISTER' | 'WAS' | 'CALLED' | 'RETURNED_KW' | 'TIMES' | 'ONCE' | 'WITH_KW' | 'NEVER_KW' | 'RETURNING' | 'LAST'
     | 'BLUR' | 'FILL' | 'RESET' | 'EMPTY' | 'ARIA' | 'ROLE_KW' | 'SCREENSHOT' | 'TAKE'
     | 'FOCUSABLE' | 'ACCESSIBLE' | 'NAME_KW' | 'ALT' | 'A11Y' | 'VIOLATIONS'
+    | 'MOCK' | 'REQUEST' | 'MADE'
     | 'INTO' | 'IN' | 'FOR' | 'TO' | 'AS' | 'ON' | 'PAGE' | 'MS'
     | 'IS' | 'NOT' | 'CONTAINS' | 'HAS' | 'EQUALS' | 'MATCHES'
     | 'VALUE' | 'TEXT' | 'CLASS' | 'FOCUS' | 'FOCUS_KW'
@@ -93,6 +94,9 @@ const KEYWORDS: Record<string, TokenType> = {
     loaded:         'LOADED',
     fixture:        'FIXTURE',
     applied:        'APPLIED',
+    mock:            'MOCK',
+    request:        'REQUEST',
+    made:           'MADE',
     focusable:      'FOCUSABLE',
     accessible:     'ACCESSIBLE',
     name:           'NAME_KW',

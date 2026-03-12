@@ -15,10 +15,38 @@ export class JSDOMRunner implements MiuraRunner {
     private _window:     (Window & typeof globalThis) | null = null;
     private _timeout:    number;
     private _scopeStack: Element[] = [];
-    private _spyRegistry = new Map<string, SpyCall[]>();
+    private _spyRegistry:    Map<string, SpyCall[]>          = new Map();
+    private _mockRegistry:   Map<string, { status: number; body: string | undefined }> = new Map();
+    private _requestLog:     Map<string, { method: string; url: string; body: string }[]>       = new Map();
 
     constructor(opts: { timeout?: number } = {}) {
         this._timeout = opts.timeout ?? 5000;
+    }
+
+    private _setupFetchInterceptor(): void {
+        if (!this._window) return;
+        const self = this;
+        (this._window as any).fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+            const url    = typeof input === 'string' ? input : input instanceof URL ? input.href : (input as Request).url;
+            const method = ((init?.method ?? (input instanceof Request ? input.method : 'GET'))).toUpperCase();
+            const body   = typeof init?.body === 'string' ? init.body : '';
+            const key    = `${method} ${url}`;
+
+            // Record the call
+            const log = self._requestLog.get(key) ?? [];
+            log.push({ method, url, body });
+            self._requestLog.set(key, log);
+
+            // Serve mock if registered
+            const mock = self._mockRegistry.get(key);
+            if (mock) {
+                return new Response(mock.body ?? '', {
+                    status:  mock.status,
+                    headers: { 'Content-Type': 'application/json' },
+                }) as unknown as globalThis.Response;
+            }
+            throw new Error(`[miura] No mock registered for ${key}. Register with: mock ${method} "${url}" returning "..."`);
+        };
     }
 
     async mount(html: string): Promise<void> {
@@ -29,7 +57,10 @@ export class JSDOMRunner implements MiuraRunner {
             url:                 'http://localhost',
         });
         this._document = this._dom.window.document;
+        this._document.write(html);
+        this._document.close();
         this._window   = this._dom.window as unknown as Window & typeof globalThis;
+        this._setupFetchInterceptor();
     }
 
     async navigate(url: string): Promise<void> {
@@ -220,6 +251,19 @@ export class JSDOMRunner implements MiuraRunner {
 
     async screenshot(_name?: string): Promise<void> {
         // JSDOM has no rendering — screenshot is a no-op
+    }
+
+    async mockRequest(method: string, url: string, status: number, body?: string): Promise<void> {
+        this._mockRegistry.set(`${method.toUpperCase()} ${url}`, { status, body });
+    }
+
+    async getRequestCalls(method: string, url: string): Promise<import('../parser/ast.js').RequestCall[]> {
+        return this._requestLog.get(`${method.toUpperCase()} ${url}`) ?? [];
+    }
+
+    async clearRequestMocks(): Promise<void> {
+        this._mockRegistry.clear();
+        this._requestLog.clear();
     }
 
     async isFocusable(selector: string): Promise<boolean> {
