@@ -158,6 +158,27 @@ export class JSDOMRunner implements MiuraRunner {
         return this._find(selector).getAttribute(attr);
     }
 
+    async focus(selector: string): Promise<void> {
+        (this._find(selector) as HTMLElement).focus();
+    }
+
+    async hasClass(selector: string, className: string): Promise<boolean> {
+        return this._find(selector).classList.contains(className);
+    }
+
+    async isReadOnly(selector: string): Promise<boolean> {
+        return (this._find(selector) as HTMLInputElement).readOnly ?? false;
+    }
+
+    async count(selector: string): Promise<number> {
+        if (!this._document) return 0;
+        const root: Element | Document =
+            this._scopeStack.length > 0
+                ? this._scopeStack[this._scopeStack.length - 1]!
+                : this._document;
+        return root.querySelectorAll(selector).length;
+    }
+
     async pushScope(selector: string): Promise<void> {
         const root = this._find(selector);
         this._scopeStack.push(root);

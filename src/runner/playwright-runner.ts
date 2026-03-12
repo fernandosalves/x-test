@@ -172,6 +172,31 @@ export class PlaywrightRunner implements MiuraRunner {
         return this._loc(selector).getAttribute(attr);
     }
 
+    async focus(selector: string): Promise<void> {
+        await this._loc(selector).focus();
+    }
+
+    async hasClass(selector: string, className: string): Promise<boolean> {
+        return this._loc(selector).evaluate(
+            (el, cls) => el.classList.contains(cls as string),
+            className,
+        );
+    }
+
+    async isReadOnly(selector: string): Promise<boolean> {
+        return this._loc(selector).evaluate(
+            el => (el as HTMLInputElement).readOnly ?? false,
+        );
+    }
+
+    async count(selector: string): Promise<number> {
+        const root = this._scopeStack.length > 0
+            ? this._scopeStack[this._scopeStack.length - 1]!
+            : null;
+        const loc = root ? root.locator(selector) : this._page.locator(selector);
+        return (loc as any).count();
+    }
+
     // ── Scope ─────────────────────────────────────────────────────────────────
 
     async pushScope(selector: string): Promise<void> {

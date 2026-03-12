@@ -5,7 +5,7 @@
  * The Executor ties together the Parser, Resolver, and Runner to run a full suite.
  */
 
-import type { XTestFile, SuiteNode, ScenarioNode, Step, ActionStep, ElementRef, WithinStep } from '../parser/ast.js';
+import type { XTestFile, SuiteNode, ScenarioNode, Step, ActionStep, ElementRef, WithinStep, LoadComponentStep, ApplyFixtureStep } from '../parser/ast.js';
 import type { SurfaceManifest } from '../manifest/types.js';
 import { Resolver, type ResolutionResult } from '../resolver/resolver.js';
 
@@ -54,6 +54,14 @@ export interface MiuraRunner {
     getProp(selector: string, prop: string): Promise<string>;
     /** Get an attribute value; returns null if absent. */
     getAttr(selector: string, attr: string): Promise<string | null>;
+    /** Move focus to an element (without click). */
+    focus(selector: string): Promise<void>;
+    /** Check if an element has a CSS class. */
+    hasClass(selector: string, className: string): Promise<boolean>;
+    /** Check if an input/textarea is readonly. */
+    isReadOnly(selector: string): Promise<boolean>;
+    /** Count the number of elements matching the selector (ignores scope stack). */
+    count(selector: string): Promise<number>;
     /** Push a scoping root — subsequent selectors are resolved within this element. */
     pushScope(selector: string): Promise<void>;
     /** Pop the most recently pushed scope. */
@@ -103,11 +111,13 @@ export interface RunResult {
 export class Executor {
     private _runner:   MiuraRunner;
     private _resolver: Resolver;
+    private _fixtures: Record<string, string>;
     private _vars:     Map<string, string> = new Map();
 
-    constructor(runner: MiuraRunner, manifest: SurfaceManifest) {
+    constructor(runner: MiuraRunner, manifest: SurfaceManifest, opts: { fixtures?: Record<string, string> } = {}) {
         this._runner   = runner;
         this._resolver = new Resolver(manifest);
+        this._fixtures = opts.fixtures ?? {};
     }
 
     async runFile(file: XTestFile, html?: string): Promise<RunResult> {
@@ -269,6 +279,8 @@ export class Executor {
             case 'assert-variable': return this._execAssertVariable(step);
             case 'store':           return this._execStore(step);
             case 'within':          return this._execWithin(step);
+            case 'load-component':  return this._execLoadComponent(step as LoadComponentStep);
+            case 'apply-fixture':   return this._execApplyFixture(step as ApplyFixtureStep);
         }
     }
 
@@ -284,11 +296,28 @@ export class Executor {
             case 'clear':      return this._runner.clear(r!.selector);
             case 'hover':      return this._runner.hover(r!.selector);
             case 'scroll-to':  return this._runner.scrollTo(r!.selector);
-            case 'wait-for':   return this._runner.waitFor(r!.selector);
+            case 'wait-for':   return this._runner.waitFor(r!.selector, (step as any).timeoutMs);
             case 'wait-ms':    return this._runner.waitMs((step as any).ms);
             case 'navigate':   return this._runner.navigate((step as any).url);
             case 'reload':     return this._runner.reload();
             case 'press':      return this._runner.press((step as any).key);
+            case 'focus':      return this._runner.focus(r!.selector);
+        }
+    }
+
+    private async _execLoadComponent(step: LoadComponentStep): Promise<void> {
+        // component X is loaded — re-mount with the component's fixture HTML if registered
+        const html = this._fixtures[step.name];
+        if (html) await this._runner.mount(html);
+        // otherwise no-op: component was already mounted via runFile()
+    }
+
+    private async _execApplyFixture(step: ApplyFixtureStep): Promise<void> {
+        const html = this._fixtures[step.name];
+        if (html) {
+            await this._runner.mount(html);
+        } else {
+            throw new Error(`[miura] Fixture "${step.name}" not found. Register it in Executor options: new Executor(runner, manifest, { fixtures: { "${step.name}": html } })`);
         }
     }
 
@@ -297,50 +326,84 @@ export class Executor {
         const a = step.assertion;
         const neg = step.negated;
 
-        const check = async (cond: boolean): Promise<void> => {
+        const check = async (cond: boolean, expected?: string, actual?: string): Promise<void> => {
             const result = neg ? !cond : cond;
-            if (!result) throw new Error(`Assertion failed: ${this._stepLabel(step)}`);
+            if (!result) {
+                const detail = expected
+                    ? actual !== undefined
+                        ? ` — expected ${neg ? 'not ' : ''}${expected}, got ${actual}`
+                        : ` — expected ${neg ? 'not ' : ''}${expected}`
+                    : '';
+                throw new Error(`Assertion failed: ${this._stepLabel(step)}${detail}`);
+            }
         };
 
         switch (a.op) {
-            case 'is-visibility':
-                if (a.state === 'visible')  await check(await this._runner.isVisible(r.selector));
-                if (a.state === 'hidden')   await check(!await this._runner.isVisible(r.selector));
-                if (a.state === 'absent')   await check(!await this._runner.isPresent(r.selector));
-                if (a.state === 'present')  await check(await this._runner.isPresent(r.selector));
+            case 'is-visibility': {
+                const visible  = await this._runner.isVisible(r.selector);
+                const present  = await this._runner.isPresent(r.selector);
+                const actualState = !present ? 'absent' : visible ? 'visible' : 'hidden';
+                if (a.state === 'visible')  await check(visible,  'visible',  actualState);
+                if (a.state === 'hidden')   await check(!visible && present, 'hidden',  actualState);
+                if (a.state === 'absent')   await check(!present, 'absent',  actualState);
+                if (a.state === 'present')  await check(present,  'present', actualState);
                 break;
+            }
             case 'is-input-state':
-                if (a.state === 'enabled')   await check(await this._runner.isEnabled(r.selector));
-                if (a.state === 'disabled')  await check(!await this._runner.isEnabled(r.selector));
-                if (a.state === 'checked')   await check(await this._runner.isChecked(r.selector));
-                if (a.state === 'unchecked') await check(!await this._runner.isChecked(r.selector));
-                if (a.state === 'focused')   await check(await this._runner.hasFocus(r.selector));
+                if (a.state === 'enabled')   await check(await this._runner.isEnabled(r.selector),  'enabled');
+                if (a.state === 'disabled')  await check(!await this._runner.isEnabled(r.selector), 'disabled');
+                if (a.state === 'checked')   await check(await this._runner.isChecked(r.selector),  'checked');
+                if (a.state === 'unchecked') await check(!await this._runner.isChecked(r.selector), 'unchecked');
+                if (a.state === 'focused')   await check(await this._runner.hasFocus(r.selector),   'focused');
+                if (a.state === 'readonly')  await check(await this._runner.isReadOnly(r.selector), 'readonly');
                 break;
             case 'has-prop': {
-                const actual = await this._runner.getProp(r.selector, a.name);
-                await check(String(actual) === a.value);
+                const actualProp = await this._runner.getProp(r.selector, a.name);
+                await check(String(actualProp) === a.value, `prop "${a.name}" = "${a.value}"`, `"${actualProp}"`);
                 break;
             }
             case 'has-attr': {
                 const attrVal = await this._runner.getAttr(r.selector, a.name);
-                if (a.state === 'present') { await check(attrVal !== null); break; }
-                if (a.state === 'absent')  { await check(attrVal === null); break; }
-                await check(attrVal === a.value);
+                if (a.state === 'present') { await check(attrVal !== null, `attr "${a.name}" present`, attrVal === null ? 'absent' : 'present'); break; }
+                if (a.state === 'absent')  { await check(attrVal === null, `attr "${a.name}" absent`,  attrVal === null ? 'absent' : `"${attrVal}"`); break; }
+                await check(attrVal === a.value, `attr "${a.name}" = "${a.value}"`, attrVal !== null ? `"${attrVal}"` : 'absent');
                 break;
             }
             case 'contains': {
                 const text = await this._runner.getText(r.selector, r.needsText);
-                await check(text.toLowerCase().includes((a.value as string).toLowerCase()));
+                await check(text.toLowerCase().includes((a.value as string).toLowerCase()), `contains "${a.value}"`, `"${text}"`);
                 break;
             }
             case 'has-value': {
                 const val = await this._runner.getValue(r.selector);
-                await check(val === a.value);
+                await check(val === a.value, `value "${a.value}"`, `"${val}"`);
                 break;
             }
             case 'has-focus':
-                await check(await this._runner.hasFocus(r.selector));
+                await check(await this._runner.hasFocus(r.selector), 'focused');
                 break;
+            case 'has-class': {
+                const has = await this._runner.hasClass(r.selector, a.value);
+                await check(has, `class "${a.value}"`);
+                break;
+            }
+            case 'matches': {
+                const text = await this._runner.getText(r.selector);
+                await check(new RegExp(a.pattern).test(text), `matches /${a.pattern}/`);
+                break;
+            }
+            case 'has-count': {
+                const actual = await this._runner.count(r.selector);
+                await check(actual === a.count, `count ${a.count}`, String(actual));
+                break;
+            }
+            case 'has-text': {
+                const text = await this._runner.getText(r.selector);
+                await check(text.trim() === a.value, `text "${a.value}"`, `"${text.trim()}"`);
+                break;
+            }
+            default:
+                throw new Error(`[miura] Unhandled assertion op: ${(a as any).op}`);
         }
     }
 
@@ -377,14 +440,34 @@ export class Executor {
                 const val = s.value ? ` "${s.value}"` : s.url ? ` "${s.url}"` : s.key ? ` "${s.key}"` : s.ms ? ` ${s.ms}ms` : '';
                 return `${s.action}${val}${el}`;
             }
-            case 'assert-element':
-                return `check ${s.element.value} ${s.negated ? 'not ' : ''}${JSON.stringify(s.assertion)}`;
+            case 'assert-element': {
+                const op = s.assertion.op as string;
+                const detail = (() => {
+                    const a = s.assertion;
+                    if (a.op === 'is-visibility' || a.op === 'is-input-state') return `is ${a.state}`;
+                    if (a.op === 'contains')   return `contains "${a.value}"`;
+                    if (a.op === 'has-value')  return `has value "${a.value}"`;
+                    if (a.op === 'has-text')   return `has text "${a.value}"`;
+                    if (a.op === 'has-focus')  return 'has focus';
+                    if (a.op === 'has-class')  return `has class "${a.value}"`;
+                    if (a.op === 'matches')    return `matches /${a.pattern}/`;
+                    if (a.op === 'has-prop')   return `has prop "${a.name}" equals "${a.value}"`;
+                    if (a.op === 'has-attr')   return a.value ? `has attr "${a.name}" equals "${a.value}"` : `has attr "${a.name}" is ${a.state}`;
+                    if (a.op === 'has-count')  return `has count ${a.count}`;
+                    return op;
+                })();
+                return `check ${s.element.value} ${s.negated ? 'not ' : ''}${detail}`;
+            }
             case 'assert-variable':
                 return `check $${s.variable} ${s.op} "${s.value}"`;
             case 'store':
                 return `store ${s.element.value} ${s.capture} as $${s.variable}`;
             case 'within':
                 return `within ${s.root.value} (${s.steps.length} steps)`;
+            case 'load-component':
+                return `component ${s.name} is loaded`;
+            case 'apply-fixture':
+                return `fixture "${s.name}" is applied`;
             default:
                 return String((s as any).kind ?? 'unknown step');
         }

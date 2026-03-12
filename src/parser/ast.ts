@@ -25,7 +25,7 @@ export type ElementRef =
 export type ActionKind =
     | 'click' | 'double-click' | 'right-click'
     | 'type' | 'clear' | 'select'
-    | 'hover' | 'scroll-to'
+    | 'hover' | 'scroll-to' | 'focus'
     | 'wait-for' | 'wait-ms'
     | 'navigate' | 'reload'
     | 'press';
@@ -36,16 +36,17 @@ export interface SelectAction  { action: 'select';      element: ElementRef; val
 export interface ClearAction   { action: 'clear';       element: ElementRef; loc: Loc }
 export interface HoverAction   { action: 'hover';       element: ElementRef; loc: Loc }
 export interface ScrollAction  { action: 'scroll-to';   element: ElementRef; loc: Loc }
-export interface WaitForAction { action: 'wait-for';    element: ElementRef; loc: Loc }
+export interface WaitForAction { action: 'wait-for';    element: ElementRef; timeoutMs?: number; loc: Loc }
 export interface WaitMsAction  { action: 'wait-ms';     ms: number;          loc: Loc }
 export interface NavigateAction{ action: 'navigate';    url: string;         loc: Loc }
 export interface ReloadAction  { action: 'reload';      loc: Loc }
 export interface PressAction   { action: 'press';       key: string;         loc: Loc }
+export interface FocusAction   { action: 'focus';       element: ElementRef; loc: Loc }
 
 export type ActionStep =
     | TypeAction | ClickAction | SelectAction | ClearAction
     | HoverAction | ScrollAction | WaitForAction | WaitMsAction
-    | NavigateAction | ReloadAction | PressAction;
+    | NavigateAction | ReloadAction | PressAction | FocusAction;
 
 // ── Assertions ──────────────────────────────────────────────────────────────────
 
@@ -57,11 +58,13 @@ export type AssertionKind =
     | { op: 'is-input-state'; state: InputState }
     | { op: 'contains';      value: string }
     | { op: 'has-value';     value: string }
+    | { op: 'has-text';      value: string }
     | { op: 'has-focus' }
     | { op: 'has-class';     value: string }
     | { op: 'matches';       pattern: string }
     | { op: 'has-prop';      name: string; value: string }
-    | { op: 'has-attr';      name: string; value?: string; state?: 'present' | 'absent' };
+    | { op: 'has-attr';      name: string; value?: string; state?: 'present' | 'absent' }
+    | { op: 'has-count';     count: number };
 
 export interface AssertElementStep {
     kind:      'assert-element';
@@ -91,6 +94,20 @@ export interface StoreStep {
     loc:      Loc;
 }
 
+// ── Given special steps ────────────────────────────────────────────────────────
+
+export interface LoadComponentStep {
+    kind:      'load-component';
+    name:      string;
+    loc:       Loc;
+}
+
+export interface ApplyFixtureStep {
+    kind:      'apply-fixture';
+    name:      string;
+    loc:       Loc;
+}
+
 // ── Within ─────────────────────────────────────────────────────────────────────
 
 export interface WithinStep {
@@ -106,7 +123,9 @@ export type Step =
     | (ActionStep & { kind: 'action' })
     | AssertStep
     | StoreStep
-    | WithinStep;
+    | WithinStep
+    | LoadComponentStep
+    | ApplyFixtureStep;
 
 // ── Scenario ────────────────────────────────────────────────────────────────────
 

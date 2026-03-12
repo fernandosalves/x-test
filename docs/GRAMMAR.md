@@ -39,8 +39,8 @@ ScenarioKw  ← "scenario"          -- normal
             / "only" "scenario"    -- focused
 
 Given       ← "given" NEWLINE INDENT GivenStep+ DEDENT
-GivenStep   ← "component" Ident "is" "loaded"
-            / "fixture" String "is" "applied"
+GivenStep   ← "component" Ident "is" "loaded"   -- mount component HTML from fixtures map
+            / "fixture" String "is" "applied"    -- apply a named HTML fixture
             / Step
 
 Step        ← ActionStep / AssertStep / StoreStep / PressStep / NavigateStep / WithinStep
@@ -54,6 +54,7 @@ ActionStep  ← TypeAction
             / WaitAction
             / HoverAction
             / ScrollAction
+            / FocusAction
             / ReloadAction
 
 TypeAction  ← "type" String "into" ElementRef
@@ -62,10 +63,11 @@ ClickAction ← "click" ElementRef
             / "right-click" ElementRef
 SelectAction← "select" String "in" ElementRef
 ClearAction ← "clear" ElementRef
-WaitAction  ← "wait" "for" ElementRef
+WaitAction  ← "wait" "for" ElementRef (Number "ms")?
             / "wait" Number "ms"
 HoverAction ← "hover" ElementRef
 ScrollAction← "scroll" "to" ElementRef
+FocusAction ← "focus" ElementRef
 ReloadAction← "reload" "page"
              / "navigate" "to" String
 
@@ -81,14 +83,16 @@ AssertionOp ← "is" Visibility
             / "is" InputState
             / "contains" String
             / "has" "value" String
+            / "has" "text"  String
             / "has" "focus"
             / "has" "class" String
+            / "has" "count" Number
             / "has" "prop" String "equals" String
             / "has" "attr" String ("equals" String / "is" ("present"/"absent"))
             / "matches" String
 
 Visibility  ← "visible" / "hidden" / "absent" / "present"
-InputState  ← "enabled" / "disabled" / "checked" / "unchecked" / "readonly"
+InputState  ← "enabled" / "disabled" / "checked" / "unchecked" / "readonly" / "focused"
 
 StoreStep   ← "store" ElementRef "text" "as" Variable
             / "store" ElementRef "value" "as" Variable
@@ -235,8 +239,9 @@ check <element> is present      # in DOM (may be hidden)
 check <element> is not visible
 
 # Content
-check <element> contains "text"
-check <element> has value "text"  # input/select current value
+check <element> contains "text"           # case-insensitive substring match
+check <element> has text "exact text"     # exact text equality (trimmed)
+check <element> has value "text"          # input/select current value
 check <element> has class "name"
 
 # DOM properties (element[prop])
@@ -263,14 +268,19 @@ check <element> is readonly
 check $var equals "text"
 check $var matches "regex pattern"
 
+# Element count
+check <element> has count 3
+check <element> has count 0      # assert no matches
+
 # Any assertion can be negated
 check <element> not has prop "type" equals "password"
+check <element> not has count 5
 check <element> is not visible
 ```
 
 ---
 
-## Actions Reference
+### Actions Reference
 
 ```
 # Input
@@ -278,11 +288,12 @@ type "text" into <element>         # sets value + fires input/change events
 clear <element>                    # clears value
 select "Option Label" in <element> # selects <option> by visible text
 
-# Pointer
+# Pointer & focus
 click <element>
 double-click <element>
 right-click <element>
 hover <element>
+focus <element>                    # move focus without clicking
 
 # Keyboard
 press "Enter"
@@ -300,6 +311,7 @@ reload page
 
 # Timing
 wait for <element>              # waits until visible (default timeout: 5000ms)
+wait for <element> 3000 ms      # waits up to 3000ms
 wait 500 ms
 ```
 
@@ -388,6 +400,40 @@ suite LoginForm
 | `beforeEach` | Before every non-skipped scenario | skipped if beforeEach throws |
 | `afterEach` | After every non-skipped scenario | **always** |
 | `teardown` | Once after all scenarios | best-effort |
+
+---
+
+## `given` Block
+
+Per-scenario setup that runs before the scenario's own steps. Supports all
+regular steps plus two special forms:
+
+```
+scenario "login as Ada"
+  given
+    component LoginForm is loaded    # mounts HTML registered for LoginForm
+    navigate to "http://localhost:3000"
+
+scenario "with dark theme"
+  given
+    fixture "dark-theme-page" is applied  # mounts registered fixture HTML
+    check body has class "dark"
+```
+
+Fixtures are registered when constructing the `Executor`:
+
+```ts
+const executor = new Executor(runner, manifest, {
+    fixtures: {
+        'LoginForm':       loginFormHTML,
+        'dark-theme-page': darkThemeHTML,
+    },
+});
+```
+
+`component X is loaded` is a no-op if no fixture is registered for `X` (falls
+back to the HTML passed to `runFile`). `fixture "name" is applied` throws a
+helpful error if the fixture is not found.
 
 ---
 

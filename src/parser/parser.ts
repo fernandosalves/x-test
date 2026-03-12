@@ -12,7 +12,8 @@ import type {
     ElementRef, AssertionKind, VisibilityState, InputState,
     TypeAction, ClickAction, SelectAction, ClearAction,
     HoverAction, ScrollAction, WaitForAction, WaitMsAction,
-    NavigateAction, ReloadAction, PressAction,
+    NavigateAction, ReloadAction, PressAction, FocusAction,
+    LoadComponentStep, ApplyFixtureStep,
     AssertElementStep, AssertVariableStep,
     Loc,
 } from './ast.js';
@@ -170,6 +171,9 @@ export class Parser {
             case 'CHECK':    return this._parseCheckStep();
             case 'STORE':    return this._parseStoreStep();
             case 'WITHIN':   return this._parseWithinStep();
+            case 'FOCUS_KW': return this._parseFocusStep();
+            case 'COMPONENT':return this._parseLoadComponentStep();
+            case 'FIXTURE':  return this._parseApplyFixtureStep();
             case 'IDENT':
                 // Handle "double-click" and "right-click" as IDENT tokens
                 if (tok.value.toLowerCase() === 'double-click') return this._parseClickStep('double-click');
@@ -241,7 +245,13 @@ export class Parser {
         }
         this._tryExpect('FOR');
         const element = this._parseElementRef();
-        return { kind: 'action', action: 'wait-for', element, loc } as WaitForAction & { kind: 'action' };
+        // optional inline timeout: wait for submit-button 3000 ms
+        let timeoutMs: number | undefined;
+        if (this._at('NUMBER')) {
+            timeoutMs = Number(this._advance().value);
+            this._tryExpect('MS');
+        }
+        return { kind: 'action', action: 'wait-for', element, ...(timeoutMs !== undefined ? { timeoutMs } : {}), loc } as WaitForAction & { kind: 'action' };
     }
 
     private _parseNavigateStep(): Step {
@@ -308,6 +318,11 @@ export class Parser {
                 const value = this._expectString('"expected value"');
                 return { op: 'has-value', value };
             }
+            if (this._at('TEXT')) {
+                this._advance();
+                const value = this._expectString('"expected text"');
+                return { op: 'has-text', value };
+            }
             if (this._at('FOCUS_KW')) {
                 this._advance();
                 return { op: 'has-focus' };
@@ -316,6 +331,12 @@ export class Parser {
                 this._advance();
                 const value = this._expectString('"class name"');
                 return { op: 'has-class', value };
+            }
+            if (this._at('COUNT')) {
+                this._advance();
+                if (!this._at('NUMBER')) throw new ParseError('Expected number after "count"', this._loc());
+                const count = Number(this._advance().value);
+                return { op: 'has-count', count };
             }
             if (this._at('PROP')) {
                 this._advance();
@@ -401,6 +422,35 @@ export class Parser {
         const steps = this._parseSteps();
         this._tryExpect('DEDENT');
         return { kind: 'within', root, steps, loc };
+    }
+
+    // ── Focus step ────────────────────────────────────────────────────────────
+
+    private _parseFocusStep(): Step {
+        const loc = this._loc();
+        this._expect('FOCUS_KW');
+        const element = this._parseElementRef();
+        return { kind: 'action', action: 'focus', element, loc } as FocusAction & { kind: 'action' };
+    }
+
+    // ── Given special steps ───────────────────────────────────────────────────
+
+    private _parseLoadComponentStep(): Step {
+        const loc = this._loc();
+        this._expect('COMPONENT');
+        const name = this._expectIdent('component name');
+        this._tryExpect('IS');
+        this._tryExpect('LOADED');
+        return { kind: 'load-component', name, loc } satisfies LoadComponentStep;
+    }
+
+    private _parseApplyFixtureStep(): Step {
+        const loc = this._loc();
+        this._expect('FIXTURE');
+        const name = this._expectString('"fixture name"');
+        this._tryExpect('IS');
+        this._tryExpect('APPLIED');
+        return { kind: 'apply-fixture', name, loc } satisfies ApplyFixtureStep;
     }
 
     // ── Element reference ─────────────────────────────────────────────────────

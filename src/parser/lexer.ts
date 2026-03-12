@@ -14,10 +14,11 @@ export type TokenType =
     | 'TYPE' | 'CLICK' | 'DOUBLE_CLICK' | 'RIGHT_CLICK'
     | 'SELECT' | 'CLEAR' | 'HOVER' | 'SCROLL' | 'WAIT'
     | 'NAVIGATE' | 'RELOAD' | 'PRESS' | 'STORE' | 'CHECK'
+    | 'COMPONENT' | 'LOADED' | 'FIXTURE' | 'APPLIED'
     | 'INTO' | 'IN' | 'FOR' | 'TO' | 'AS' | 'ON' | 'PAGE' | 'MS'
     | 'IS' | 'NOT' | 'CONTAINS' | 'HAS' | 'EQUALS' | 'MATCHES'
     | 'VALUE' | 'TEXT' | 'CLASS' | 'FOCUS' | 'FOCUS_KW'
-    | 'PROP' | 'ATTR'
+    | 'PROP' | 'ATTR' | 'COUNT'
     | 'VISIBLE' | 'HIDDEN' | 'ABSENT' | 'PRESENT'
     | 'ENABLED' | 'DISABLED' | 'CHECKED' | 'UNCHECKED' | 'READONLY'
     | 'DOUBLE_CLICK_KW' | 'RIGHT_CLICK_KW'
@@ -83,8 +84,14 @@ const KEYWORDS: Record<string, TokenType> = {
     text:           'TEXT',
     prop:           'PROP',
     attr:           'ATTR',
+    count:          'COUNT',
+    component:      'COMPONENT',
+    loaded:         'LOADED',
+    fixture:        'FIXTURE',
+    applied:        'APPLIED',
     class:          'CLASS',
     focus:          'FOCUS_KW',
+    focused:        'FOCUS_KW',
     visible:        'VISIBLE',
     hidden:         'HIDDEN',
     absent:         'ABSENT',
