@@ -34,6 +34,7 @@ export interface SurfaceElement {
 export interface SurfaceScope {
     name: string;
     strategy: ResolutionStrategy;
+    parent?: string;
 }
 
 // ── Surface manifest ────────────────────────────────────────────────────────────
@@ -51,17 +52,24 @@ export interface SurfaceManifest {
 
 export type SurfaceDefinition = Record<string, Omit<SurfaceElement, 'name'>>;
 
+type ScopeDefinition = ResolutionStrategy | { strategy: ResolutionStrategy; parent?: string };
+
 export function defineSurface(
     component: string,
     def: SurfaceDefinition,
-    opts: { scopes?: Record<string, ResolutionStrategy> } = {},
+    opts: { scopes?: Record<string, ScopeDefinition> } = {},
 ): SurfaceManifest {
     const elements: Record<string, SurfaceElement> = {};
     for (const [name, entry] of Object.entries(def)) {
         elements[name] = { name, ...entry };
     }
     const scopes = opts.scopes
-        ? Object.fromEntries(Object.entries(opts.scopes).map(([name, strategy]) => [name, { name, strategy }]))
+        ? Object.fromEntries(Object.entries(opts.scopes).map(([name, entry]) => {
+            if ('type' in entry) {
+                return [name, { name, strategy: entry } satisfies SurfaceScope];
+            }
+            return [name, { name, strategy: entry.strategy, ...(entry.parent ? { parent: entry.parent } : {}) } satisfies SurfaceScope];
+        }))
         : undefined;
     if (scopes) {
         for (const [name, scope] of Object.entries(scopes)) {

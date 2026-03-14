@@ -19,6 +19,15 @@ interface ParsedBlock {
     scopes: SurfaceScope[];
 }
 
+function stripParent(str: string): { cleaned: string; parent?: string } {
+    let parent: string | undefined;
+    const cleaned = str.replace(/parent:\s*([\w-]+)/, (_, p: string) => {
+        parent = p;
+        return '';
+    });
+    return { cleaned, parent };
+}
+
 export function extractManifest(source: string, componentName?: string): SurfaceManifest {
     const elements: Record<string, SurfaceElement> = {};
     const scopes: Record<string, SurfaceScope> = {};
@@ -104,8 +113,9 @@ function parseXtestBlock(block: string): ParsedBlock {
         if (scopeMatch) {
             const [, scopeName, rest] = scopeMatch;
             if (rest && rest.trim()) {
-                const strategy = parseStrategy(rest.trim());
-                scopes.push({ name: scopeName!, strategy });
+                const { cleaned, parent } = stripParent(rest.trim());
+                const strategy = parseStrategy(cleaned.trim());
+                scopes.push({ name: scopeName!, strategy, ...(parent ? { parent } : {}) });
                 continue;
             }
             if (current) {
