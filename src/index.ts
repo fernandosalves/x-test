@@ -31,6 +31,7 @@ export { Executor } from './runner/runner.js';
 export { JSDOMRunner } from './runner/jsdom-runner.js';
 export { PlaywrightRunner } from './runner/playwright-runner.js';
 export type { xtestRunner, RunResult, SuiteResult, ScenarioResult, StepResult } from './runner/runner.js';
+export type { XtestJSONReport } from './types/json-report.js';
 
 export { formatTAP } from './reporter/tap.js';
 export { formatPretty } from './reporter/pretty.js';

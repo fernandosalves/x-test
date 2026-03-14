@@ -1,0 +1,110 @@
+{
+    "$schema": "https://json-schema.org/draft/2020-12/schema",
+    "$id": "https://github.com/fernandosalves/xtesting/json-report.schema.json",
+    "title": "xtest JSON Report",
+    "type": "object",
+    "required": [
+        "version",
+        "generatedAt",
+        "passed",
+        "totals",
+        "files"
+    ],
+    "properties": {
+        "version": {
+            "type": "integer",
+            "enum": [
+                1
+            ]
+        },
+        "generatedAt": {
+            "type": "string",
+            "format": "date-time"
+        },
+        "passed": {
+            "type": "boolean"
+        },
+        "totals": {
+            "type": "object",
+            "required": [
+                "total",
+                "passed",
+                "failed",
+                "skipped",
+                "duration"
+            ],
+            "properties": {
+                "total": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "passed": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "failed": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "skipped": {
+                    "type": "integer",
+                    "minimum": 0
+                },
+                "duration": {
+                    "type": "integer",
+                    "minimum": 0
+                }
+            }
+        },
+        "files": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "required": [
+                    "file",
+                    "passed",
+                    "total",
+                    "totalPass",
+                    "totalFail",
+                    "totalSkipped",
+                    "duration",
+                    "suites"
+                ],
+                "properties": {
+                    "file": {
+                        "type": "string"
+                    },
+                    "passed": {
+                        "type": "boolean"
+                    },
+                    "total": {
+                        "type": "integer",
+                        "minimum": 0
+                    },
+                    "totalPass": {
+                        "type": "integer",
+                        "minimum": 0
+                    },
+                    "totalFail": {
+                        "type": "integer",
+                        "minimum": 0
+                    },
+                    "totalSkipped": {
+                        "type": "integer",
+                        "minimum": 0
+                    },
+                    "duration": {
+                        "type": "integer",
+                        "minimum": 0
+                    },
+                    "suites": {
+                        "type": "array",
+                        "items": {
+                            "type": "object"
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

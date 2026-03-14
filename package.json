@@ -19,12 +19,14 @@
         }
     },
     "scripts": {
+        "prebuild": "npm run generate:json-types",
         "build": "tsc --build",
         "dev": "tsc --build --watch",
         "test": "vitest run",
         "test:watch": "vitest",
         "start": "storybook dev -p 6008",
-        "build-storybook": "storybook build"
+        "build-storybook": "storybook build",
+        "generate:json-types": "json2ts -i docs/json-report.schema.json -o src/types/json-report.ts"
     },
     "dependencies": {
         "axe-core": "^4.11.1",
@@ -36,6 +38,7 @@
         "@storybook/html-vite": "^8.0.0",
         "@types/jsdom": "^21.0.0",
         "@types/node": "^20.0.0",
+        "json-schema-to-typescript": "^13.1.1",
         "storybook": "^8.0.0",
         "typescript": "^5.4.0",
         "vitest": "^2.0.0"

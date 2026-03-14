@@ -98,6 +98,9 @@ xtest run login.xtest --component ./login-form.ts
 # Playwright / real browser mode
 npm install -D @playwright/test
 xtest run login.xtest --url http://localhost:4173
+
+# Machine-readable summary
+xtest run "tests/**/*.xtest" --json results/xtest.json
 ```
 
 **Playwright Mode Requirements and Usage**
@@ -199,3 +202,48 @@ For components you don't control, or third-party HTML, use an explicit selector 
 Active design + implementation. See `docs/ARCHITECTURE.md` for the full system design.
 
 > Playwright mode requires installing `@playwright/test` (optional peer dependency). The CLI auto-detects `--url` usage and switches runners accordingly.
+
+---
+
+## JSON Summary Schema
+
+Use `--json <file|-|stdout>` to emit a machine-readable report after every run/watch cycle. The schema is deliberately simple so editors and CI tooling can parse it without extra dependencies.
+
+```json
+{
+  "version": 1,
+  "generatedAt": "2026-03-14T22:20:31.123Z",
+  "passed": true,
+  "totals": {
+    "total": 6,
+    "passed": 6,
+    "failed": 0,
+    "skipped": 1,
+    "duration": 842
+  },
+  "files": [
+    {
+      "file": "tests/login.xtest",
+      "passed": true,
+      "total": 3,
+      "totalPass": 3,
+      "totalFail": 0,
+      "totalSkipped": 0,
+      "duration": 312,
+      "suites": [ /* full SuiteResult[] payload */ ]
+    }
+  ]
+}
+```
+
+Field notes:
+
+| Field | Type | Description |
+| --- | --- | --- |
+| `version` | number | Schema revision. Current value: `1`. |
+| `generatedAt` | ISO string | Timestamp when the CLI produced the report. |
+| `passed` | boolean | `true` if every scenario across all files passed. |
+| `totals` | object | Aggregated stats across the batch (counts + total duration in ms). |
+| `files[]` | array | Per-file stats. Each entry mirrors the `RunResult` structure, including nested `suites` for detailed breakdowns. |
+
+When `--json -` or `--json stdout` is used, the payload is printed to stdout (after human-readable output). Otherwise, the CLI writes to the provided path, overwriting the file each run.
