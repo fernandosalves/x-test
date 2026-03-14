@@ -5,20 +5,42 @@ import { defineSurface } from '../manifest/types.js';
 const manifest = defineSurface('LoginForm', {
     'username-input': {
         strategy: { type: 'by-ref', value: 'username' },
-        aliases:  ['user name', 'email', 'email address'],
+        aliases: ['user name', 'email', 'email address'],
     },
     'password-input': {
         strategy: { type: 'by-type', value: 'password' },
-        aliases:  ['password', 'pass'],
+        aliases: ['password', 'pass'],
     },
     'submit-button': {
         strategy: { type: 'by-role', value: 'button', name: 'Sign in' },
-        aliases:  ['submit', 'login button', 'sign in'],
+        aliases: ['submit', 'login button', 'sign in'],
     },
     'error-message': {
         strategy: { type: 'by-selector', value: '[role=alert]' },
-        aliases:  ['error', 'error message', 'alert'],
+        aliases: ['error', 'error message', 'alert'],
     },
+});
+
+describe('Resolver — scoped elements', () => {
+    const scopedManifest = defineSurface('UserTable', {
+        'row-edit': {
+            strategy: { type: 'by-ref', value: 'edit' },
+            aliases: [],
+            scope: 'row',
+        },
+    }, {
+        scopes: {
+            row: { type: 'by-selector', value: 'tr[data-row]' },
+        },
+    });
+
+    const resolver = new Resolver(scopedManifest);
+
+    it('prefixes selector with scope selector', () => {
+        const r = resolver.resolveByName('row-edit');
+        expect(r.selector).toBe('tr[data-row] [data-xtest="edit"]');
+        expect(r.scopeChain).toEqual(['tr[data-row]']);
+    });
 });
 
 describe('Resolver', () => {

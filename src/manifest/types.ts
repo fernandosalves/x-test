@@ -31,6 +31,11 @@ export interface SurfaceElement {
     scope?: string;
 }
 
+export interface SurfaceScope {
+    name: string;
+    strategy: ResolutionStrategy;
+}
+
 // ── Surface manifest ────────────────────────────────────────────────────────────
 
 export interface SurfaceManifest {
@@ -38,16 +43,32 @@ export interface SurfaceManifest {
     component?: string;
     /** All declared elements, keyed by canonical name. */
     elements: Record<string, SurfaceElement>;
+    /** Optional scope definitions keyed by scope name. */
+    scopes?: Record<string, SurfaceScope>;
 }
 
 // ── defineSurface() — programmatic manifest ─────────────────────────────────────
 
 export type SurfaceDefinition = Record<string, Omit<SurfaceElement, 'name'>>;
 
-export function defineSurface(component: string, def: SurfaceDefinition): SurfaceManifest {
+export function defineSurface(
+    component: string,
+    def: SurfaceDefinition,
+    opts: { scopes?: Record<string, ResolutionStrategy> } = {},
+): SurfaceManifest {
     const elements: Record<string, SurfaceElement> = {};
     for (const [name, entry] of Object.entries(def)) {
         elements[name] = { name, ...entry };
     }
-    return { component, elements };
+    const scopes = opts.scopes
+        ? Object.fromEntries(Object.entries(opts.scopes).map(([name, strategy]) => [name, { name, strategy }]))
+        : undefined;
+    if (scopes) {
+        for (const [name, scope] of Object.entries(scopes)) {
+            if (!(name in elements)) {
+                elements[name] = { name, strategy: scope.strategy, aliases: [] };
+            }
+        }
+    }
+    return scopes ? { component, elements, scopes } : { component, elements };
 }

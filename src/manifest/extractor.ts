@@ -6,7 +6,7 @@
  * via data-xtest attributes in template strings.
  */
 
-import type { SurfaceManifest, SurfaceElement, ResolutionStrategy } from './types.js';
+import type { SurfaceManifest, SurfaceElement, ResolutionStrategy, SurfaceScope } from './types.js';
 
 // ── Main extractor ──────────────────────────────────────────────────────────────
 
@@ -14,13 +14,27 @@ import type { SurfaceManifest, SurfaceElement, ResolutionStrategy } from './type
  * Extract a SurfaceManifest from a component source string.
  * Reads @xtest-surface JSDoc blocks and data-xtest refs in template literals.
  */
+interface ParsedBlock {
+    elements: SurfaceElement[];
+    scopes: SurfaceScope[];
+}
+
 export function extractManifest(source: string, componentName?: string): SurfaceManifest {
     const elements: Record<string, SurfaceElement> = {};
+    const scopes: Record<string, SurfaceScope> = {};
 
     // 1. Parse @xtest-surface JSDoc blocks
-    const jsdocElements = extractFromJSDoc(source);
-    for (const el of jsdocElements) {
-        elements[el.name] = el;
+    const jsdocBlocks = extractFromJSDoc(source);
+    for (const block of jsdocBlocks) {
+        for (const el of block.elements) {
+            elements[el.name] = el;
+        }
+        for (const scope of block.scopes) {
+            scopes[scope.name] = scope;
+            if (!(scope.name in elements)) {
+                elements[scope.name] = { name: scope.name, strategy: scope.strategy, aliases: [] };
+            }
+        }
     }
 
     // 2. Auto-discover xtest() directive refs in template strings
@@ -32,6 +46,7 @@ export function extractManifest(source: string, componentName?: string): Surface
     }
 
     const manifest: SurfaceManifest = { elements };
+    if (Object.keys(scopes).length > 0) manifest.scopes = scopes;
     if (componentName !== undefined) manifest.component = componentName;
     return manifest;
 }
@@ -40,24 +55,22 @@ export function extractManifest(source: string, componentName?: string): Surface
 
 const XTEST_SURFACE_BLOCK = /\/\*\*[\s\S]*?@xtest-surface[\s\S]*?\*\//g;
 
-function extractFromJSDoc(source: string): SurfaceElement[] {
-    const elements: SurfaceElement[] = [];
-    const blocks = source.matchAll(XTEST_SURFACE_BLOCK);
-
-    for (const [block] of blocks) {
-        elements.push(...parseXtestBlock(block));
+function extractFromJSDoc(source: string): ParsedBlock[] {
+    const blocks: ParsedBlock[] = [];
+    for (const [block] of source.matchAll(XTEST_SURFACE_BLOCK)) {
+        blocks.push(parseXtestBlock(block));
     }
-
-    return elements;
+    return blocks;
 }
 
-function parseXtestBlock(block: string): SurfaceElement[] {
+function parseXtestBlock(block: string): ParsedBlock {
     const lines = block
         .split('\n')
         .map(l => l.replace(/^\s*\*\s?/, '').trim())
         .filter(Boolean);
 
     const elements: SurfaceElement[] = [];
+    const scopes: SurfaceScope[] = [];
     let current: SurfaceElement | null = null;
 
     for (const line of lines) {
@@ -66,9 +79,14 @@ function parseXtestBlock(block: string): SurfaceElement[] {
         if (elementMatch) {
             if (current) elements.push(current);
             const name = elementMatch[1]!;
-            const stratStr = (elementMatch[2] ?? '').trim();
+            let stratStr = (elementMatch[2] ?? '').trim();
+            let inlineScope: string | undefined;
+            stratStr = stratStr.replace(/@scope\s+([\w-]+)/, (_, scopeName: string) => {
+                inlineScope = scopeName;
+                return '';
+            }).trim();
             const strategy = parseStrategy(stratStr);
-            current = { name, strategy, aliases: [] };
+            current = { name, strategy, aliases: [], ...(inlineScope ? { scope: inlineScope } : {}) };
             continue;
         }
 
@@ -81,16 +99,24 @@ function parseXtestBlock(block: string): SurfaceElement[] {
             continue;
         }
 
-        // @scope <name>
-        const scopeMatch = line.match(/^@scope\s+([\w-]+)/);
-        if (scopeMatch && current && scopeMatch[1] !== undefined) {
-            current.scope = scopeMatch[1];
+        // @scope definitions or assignments
+        const scopeMatch = line.match(/^@scope\s+([\w-]+)(?:\s+(.*))?$/);
+        if (scopeMatch) {
+            const [, scopeName, rest] = scopeMatch;
+            if (rest && rest.trim()) {
+                const strategy = parseStrategy(rest.trim());
+                scopes.push({ name: scopeName!, strategy });
+                continue;
+            }
+            if (current) {
+                current.scope = scopeName!;
+            }
             continue;
         }
     }
 
     if (current) elements.push(current);
-    return elements;
+    return { elements, scopes };
 }
 
 function parseStrategy(str: string): ResolutionStrategy {

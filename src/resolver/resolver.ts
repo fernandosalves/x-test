@@ -7,7 +7,7 @@
  */
 
 import type { ElementRef } from '../parser/ast.js';
-import type { SurfaceManifest, SurfaceElement } from '../manifest/types.js';
+import type { SurfaceManifest, SurfaceElement, SurfaceScope } from '../manifest/types.js';
 import {
     strategyToSelector, inferSelector, editDistance, normalise,
     type ResolvedSelector,
@@ -22,6 +22,7 @@ export interface ResolutionResult {
     confidence: 'exact' | 'alias' | 'fuzzy' | 'inferred' | 'fallback';
     warning?: string;
     needsText?: string;
+    scopeChain?: string[];
 }
 
 export class ResolutionError extends Error {
@@ -43,10 +44,12 @@ export class ResolutionError extends Error {
 export class Resolver {
     private _manifest: SurfaceManifest;
     private _aliasIndex: Map<string, SurfaceElement> = new Map();
+    private _scopeCache: Map<string, SurfaceScope> = new Map();
 
     constructor(manifest: SurfaceManifest) {
         this._manifest = manifest;
         this._buildAliasIndex();
+        this._buildScopeCache();
     }
 
     resolve(ref: ElementRef): ResolutionResult {
@@ -122,13 +125,14 @@ export class Resolver {
         const resolved = el.strategy.type === 'auto'
             ? inferSelector(el.name)
             : strategyToSelector(el.strategy);
-
+        const scoped = this._applyScope(el.scope, resolved.selector);
         return {
-            selector: resolved.selector,
+            selector: scoped.selector,
             element: el,
             strategy: resolved.strategy,
             confidence,
             ...(resolved.needsText ? { needsText: resolved.needsText } : {}),
+            ...(scoped.scopeChain.length ? { scopeChain: scoped.scopeChain } : {}),
         };
     }
 
@@ -153,5 +157,33 @@ export class Resolver {
             .sort((a, b) => a.dist - b.dist)
             .slice(0, n)
             .map(e => e.name);
+    }
+
+    private _buildScopeCache(): void {
+        if (!this._manifest.scopes) return;
+        for (const scope of Object.values(this._manifest.scopes)) {
+            this._scopeCache.set(scope.name, scope);
+        }
+    }
+
+    private _applyScope(scopeName: string | undefined, selector: string): { selector: string; scopeChain: string[] } {
+        if (!scopeName) return { selector, scopeChain: [] };
+        const chain: string[] = [];
+        let current: string | undefined = scopeName;
+        const visited = new Set<string>();
+        while (current) {
+            if (visited.has(current)) break;
+            visited.add(current);
+            const scope = this._scopeCache.get(current);
+            if (!scope) break;
+            const resolved = scope.strategy.type === 'auto'
+                ? inferSelector(scope.name)
+                : strategyToSelector(scope.strategy);
+            chain.unshift(resolved.selector);
+            current = undefined; // placeholder for future nested scopes
+        }
+        if (chain.length === 0) return { selector, scopeChain: [] };
+        const combined = `${chain.join(' ')} ${selector}`.trim();
+        return { selector: combined, scopeChain: chain };
     }
 }
