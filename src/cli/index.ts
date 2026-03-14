@@ -23,6 +23,7 @@ import { parseXTest } from '../parser/parser.js';
 import { extractManifestFromFile, extractManifest, mergeManifests } from '../manifest/extractor.js';
 import { defineSurface } from '../manifest/types.js';
 import { JSDOMRunner } from '../runner/jsdom-runner.js';
+import { PlaywrightRunner } from '../runner/playwright-runner.js';
 import { Executor } from '../runner/runner.js';
 import { formatTAP } from '../reporter/tap.js';
 import { formatPretty } from '../reporter/pretty.js';
@@ -42,6 +43,15 @@ interface CliArgs {
     timeout: number;
     verbose: boolean;
     help: boolean;
+}
+
+async function loadPlaywright(): Promise<typeof import('@playwright/test')> {
+    try {
+        return await import('@playwright/test');
+    } catch (err) {
+        const hint = err instanceof Error ? err.message : String(err);
+        throw new Error(`[@xtest] Playwright mode requires installing @playwright/test (npm install -D @playwright/test). Original error: ${hint}`);
+    }
 }
 
 function parseArgs(argv: string[]): CliArgs {
@@ -154,7 +164,7 @@ async function main(): Promise<void> {
     // ── Single run ──────────────────────────────────────────────────────────
     async function runOnce(targetFiles: string[]): Promise<boolean> {
         let manifest = await buildManifest();
-        const html = await loadHtml();
+        const html = args.url ? undefined : await loadHtml();
         const allResults: RunResult[] = [];
 
         for (const file of targetFiles) {
@@ -166,11 +176,30 @@ async function main(): Promise<void> {
                 try { manifest = await extractManifestFromFile(autoFile); } catch { /* inference mode */ }
             }
 
-            const runner = new JSDOMRunner({ timeout: args.timeout });
-            const executor = new Executor(runner, manifest);
-            const result = await executor.runFile(ast, html);
-            allResults.push(result);
-            await runner.teardown();
+            if (args.url) {
+                const { chromium } = await loadPlaywright();
+                let browser: import('@playwright/test').Browser | undefined;
+                let page: import('@playwright/test').Page | undefined;
+                try {
+                    browser = await chromium.launch();
+                    page = await browser.newPage();
+                    const runner = new PlaywrightRunner(page, { timeout: args.timeout });
+                    if (args.url) await runner.navigate(args.url);
+                    const executor = new Executor(runner, manifest);
+                    const result = await executor.runFile(ast, undefined);
+                    allResults.push(result);
+                    await runner.teardown();
+                } finally {
+                    await page?.close().catch(() => { });
+                    await browser?.close().catch(() => { });
+                }
+            } else {
+                const runner = new JSDOMRunner({ timeout: args.timeout });
+                const executor = new Executor(runner, manifest);
+                const result = await executor.runFile(ast, html);
+                allResults.push(result);
+                await runner.teardown();
+            }
         }
 
         const combined: RunResult = {

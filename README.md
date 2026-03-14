@@ -92,8 +92,17 @@ suite UserLogin
 **Run**
 
 ```bash
+# JSDOM (default)
 xtest run login.xtest --component ./login-form.ts
+
+# Playwright / real browser mode
+npm install -D @playwright/test
+xtest run login.xtest --url http://localhost:4173
 ```
+
+**Playwright Mode Requirements and Usage**
+
+To use Playwright mode, you need to install `@playwright/test` as a dev dependency. You can do this by running `npm install -D @playwright/test`. Once installed, you can run your tests in Playwright mode by adding the `--url` flag followed by the URL of your application. For example: `xtest run login.xtest --url http://localhost:4173`.
 
 ---
 
@@ -188,3 +197,5 @@ For components you don't control, or third-party HTML, use an explicit selector 
 ## Status
 
 Active design + implementation. See `docs/ARCHITECTURE.md` for the full system design.
+
+> Playwright mode requires installing `@playwright/test` (optional peer dependency). The CLI auto-detects `--url` usage and switches runners accordingly.
