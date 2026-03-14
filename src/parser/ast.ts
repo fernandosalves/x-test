@@ -218,6 +218,7 @@ export interface TakeScreenshotStep {
 export interface WithinStep {
     kind: 'within';
     root: ElementRef;
+    scopes?: { name: string; qualifier: number }[];
     steps: Step[];
     loc: Loc;
 }

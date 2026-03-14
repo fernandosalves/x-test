@@ -30,6 +30,7 @@ export type TokenType =
     | 'NUMBER'
     | 'IDENT'
     | 'VARIABLE'
+    | 'COLON'
     | 'INDENT'
     | 'DEDENT'
     | 'NEWLINE'
@@ -200,6 +201,12 @@ export class Lexer {
             // Variable $name
             if (ch === '$') {
                 tokens.push(this._readVariable(startLine, startCol));
+                continue;
+            }
+
+            if (ch === ':') {
+                this._advance();
+                tokens.push({ type: 'COLON', value: ':', line: startLine, column: startCol });
                 continue;
             }
 

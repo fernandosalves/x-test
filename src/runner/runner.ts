@@ -93,7 +93,7 @@ export interface xtestRunner {
     /** Capture a screenshot (no-op in environments that don't support it). */
     screenshot(name?: string): Promise<void>;
     /** Push a scoping root — subsequent selectors are resolved within this element. */
-    pushScope(selector: string): Promise<void>;
+    pushScope(selector: string, opts?: { index?: number }): Promise<void>;
     /** Pop the most recently pushed scope. */
     popScope(): Promise<void>;
     /** Tear down the environment. */
@@ -293,13 +293,24 @@ export class Executor {
     }
 
     private async _execWithin(step: WithinStep): Promise<void> {
-        const { selector } = this._resolver.resolve(step.root);
-        await this._runner.pushScope(selector);
+        const rootResolved = this._resolver.resolve(step.root);
+        await this._runner.pushScope(rootResolved.selector);
+        if (step.scopes) {
+            for (const scope of step.scopes) {
+                const selector = this._resolver.getScopeSelector(scope.name);
+                await this._runner.pushScope(selector, scope.qualifier ? { index: scope.qualifier } : undefined);
+            }
+        }
         try {
             for (const s of step.steps) {
                 await this._execStep(s);
             }
         } finally {
+            if (step.scopes) {
+                for (let i = 0; i < step.scopes.length; i++) {
+                    await this._runner.popScope();
+                }
+            }
             await this._runner.popScope();
         }
     }

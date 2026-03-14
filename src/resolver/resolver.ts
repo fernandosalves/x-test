@@ -166,6 +166,15 @@ export class Resolver {
         }
     }
 
+    getScopeSelector(name: string): string {
+        const scope = this._scopeCache.get(name);
+        if (!scope) throw new Error(`[xtest] Unknown scope "${name}".`);
+        const resolved = scope.strategy.type === 'auto'
+            ? inferSelector(scope.name)
+            : strategyToSelector(scope.strategy);
+        return resolved.selector;
+    }
+
     private _applyScope(scopeName: string | undefined, selector: string): { selector: string; scopeChain: string[] } {
         if (!scopeName) return { selector, scopeChain: [] };
         const chain: string[] = [];
@@ -180,7 +189,7 @@ export class Resolver {
                 ? inferSelector(scope.name)
                 : strategyToSelector(scope.strategy);
             chain.unshift(resolved.selector);
-            current = undefined; // placeholder for future nested scopes
+            current = scope.parent;
         }
         if (chain.length === 0) return { selector, scopeChain: [] };
         const combined = `${chain.join(' ')} ${selector}`.trim();

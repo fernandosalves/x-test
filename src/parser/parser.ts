@@ -503,11 +503,30 @@ export class Parser {
         const loc = this._loc();
         this._expect('WITHIN');
         const root = this._parseElementRef();
+        const scopes: { name: string; qualifier?: number }[] = [];
+        while ((this._at('IDENT') || this._peekAt(0)?.type === 'COLON')) {
+            let scopeName: string;
+            if (this._at('IDENT') && this._peekAt(1)?.type === 'COLON') {
+                scopeName = this._advance().value;
+            } else if (this._at('COLON')) {
+                if (root.kind !== 'name') throw new ParseError('Unnamed scope qualifier requires a named root element', this._loc());
+                scopeName = root.value;
+            } else {
+                break;
+            }
+            this._expect('COLON');
+            if (!this._at('NUMBER')) throw new ParseError('Expected numeric scope qualifier after ":"', this._loc());
+            const qualifier = Number(this._advance().value);
+            if (Number.isNaN(qualifier) || qualifier < 1) throw new ParseError('Scope qualifier must be a positive integer', this._loc());
+            scopes.push({ name: scopeName, qualifier });
+        }
         this._skipNewlines();
         this._expect('INDENT');
         const steps = this._parseSteps();
         this._tryExpect('DEDENT');
-        return { kind: 'within', root, steps, loc };
+        return scopes.length > 0
+            ? { kind: 'within', root, scopes, steps, loc }
+            : { kind: 'within', root, steps, loc };
     }
 
     // ── Focus step ────────────────────────────────────────────────────────────

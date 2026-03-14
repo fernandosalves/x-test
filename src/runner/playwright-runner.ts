@@ -327,11 +327,14 @@ export class PlaywrightRunner implements xtestRunner {
 
     // ── Scope ─────────────────────────────────────────────────────────────────
 
-    async pushScope(selector: string): Promise<void> {
+    async pushScope(selector: string, opts?: { index?: number }): Promise<void> {
+        const index = opts?.index ?? 1;
+        if (index < 1) throw new Error('[xtest] Scope qualifier must be >= 1');
         const root = this._scopeStack.length > 0
             ? this._scopeStack[this._scopeStack.length - 1]!.locator(selector)
             : this._page.locator(selector);
-        this._scopeStack.push(root);
+        const nth = (root as any).nth?.(index - 1) ?? root;
+        this._scopeStack.push(nth);
     }
 
     async popScope(): Promise<void> {

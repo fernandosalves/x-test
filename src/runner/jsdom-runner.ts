@@ -329,8 +329,10 @@ export class JSDOMRunner implements xtestRunner {
         return root.querySelectorAll(selector).length;
     }
 
-    async pushScope(selector: string): Promise<void> {
-        const root = this._find(selector);
+    async pushScope(selector: string, opts?: { index?: number }): Promise<void> {
+        const index = opts?.index ?? 1;
+        if (index < 1) throw new Error('[xtest] Scope qualifier must be >= 1');
+        const root = this._findNth(selector, index);
         this._scopeStack.push(root);
     }
 
@@ -363,6 +365,19 @@ export class JSDOMRunner implements xtestRunner {
             if (el) return el;
         }
         throw new Error(`[xtest] Element not found: "${selector}"${this._scopeStack.length > 0 ? ` within scope` : ''}`);
+    }
+
+    private _findNth(selector: string, index: number): Element {
+        if (!this._document) throw new Error('[xtest] Runner not mounted — call mount() first');
+        const root: Element | Document =
+            this._scopeStack.length > 0
+                ? this._scopeStack[this._scopeStack.length - 1]!
+                : this._document;
+
+        const matches = root.querySelectorAll(selector);
+        const target = matches[index - 1];
+        if (!target) throw new Error(`[xtest] Scope selector "${selector}" does not have instance #${index}`);
+        return target;
     }
 
     private _tick(ms: number): Promise<void> {
