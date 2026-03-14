@@ -71,6 +71,15 @@ const DEMO_MANIFEST = defineSurface('LoginForm', {
         strategy: { type: 'by-selector', value: 'main[data-page=dashboard]' },
         aliases: ['dashboard', 'home page', 'main page'],
     },
+    'row-scoped-button': {
+        strategy: { type: 'by-ref', value: 'edit' },
+        aliases: [],
+        scope: 'row',
+    },
+}, {
+    scopes: {
+        row: { type: 'by-selector', value: 'tr[data-row]' },
+    },
 });
 
 // ── Story 1 — Resolver Playground ─────────────────────────────────────────────

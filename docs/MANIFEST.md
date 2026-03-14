@@ -179,12 +179,18 @@ For compound components with sub-components, declare a scope:
  */
 ```
 
-Steps then use scope qualifier (syntax reserved, not yet implemented):
+Once scopes are declared, target specific instances with a qualifier inside `within` blocks:
+
 ```
 within user-table row:2
   click edit-button
   check row-name contains "Ada"
 ```
+
+- Qualifiers are **1-based** ordinals: `row:1` is the first match of the scope selector, `row:2` the second, etc.
+- Omit the scope name to reuse the `within` root: `within user-table :3` is shorthand for `within user-table user-table:3`.
+- Chain multiple scopes for nested components: `within dashboard section:2 card:1`.
+- Resolvers enforce scopes automatically — every step inside the block is limited to that DOM subtree.
 
 ---
 

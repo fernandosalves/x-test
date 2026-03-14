@@ -1,0 +1,11 @@
+suite UserTable
+
+  scenario "Edit third row"
+    within user-table row:3
+      click edit-button
+      check row-name contains "Ada Lovelace"
+
+  scenario "Delete first row"
+    within user-table row:1
+      click delete-button
+      check row-name contains "Alan Turing"
