@@ -17,6 +17,7 @@
 
 import type { xtestRunner } from './runner.js';
 import type { SpyCall } from '../parser/ast.js';
+import type { Page as PlaywrightPage } from '@playwright/test';
 
 // ── Minimal Playwright Page / Locator types ──────────────────────────────────
 // Typed against the Playwright public API so we don't require @playwright/test
@@ -44,7 +45,7 @@ interface PwLocator {
 interface PwPage {
     setContent(html: string, opts?: { waitUntil?: string }): Promise<void>;
     goto(url: string, opts?: { waitUntil?: string }): Promise<unknown>;
-    reload(): Promise<void>;
+    reload(): Promise<unknown>;
     waitForTimeout(ms: number): Promise<void>;
     locator(selector: string): PwLocator;
     keyboard: { press(key: string): Promise<void> };
@@ -60,8 +61,8 @@ export class PlaywrightRunner implements xtestRunner {
     private _requestLog: Map<string, import('../parser/ast.js').RequestCall[]> = new Map();
     private _timeout: number;
 
-    constructor(page: PwPage, opts: { timeout?: number } = {}) {
-        this._page = page;
+    constructor(page: PwPage | PlaywrightPage, opts: { timeout?: number } = {}) {
+        this._page = page as PwPage;
         this._timeout = opts.timeout ?? 10_000;
     }
 

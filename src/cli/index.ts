@@ -15,8 +15,10 @@
  *   --verbose
  */
 
-import { readFile } from 'node:fs/promises';
+import { readFile, writeFile } from 'node:fs/promises';
 import { resolve, basename } from 'node:path';
+import { execFile } from 'node:child_process';
+import { promisify } from 'node:util';
 import process from 'node:process';
 
 import { parseXTest } from '../parser/parser.js';
@@ -43,7 +45,27 @@ interface CliArgs {
     timeout: number;
     verbose: boolean;
     help: boolean;
+    json?: string;
 }
+
+function printSummary(result: RunResult): void {
+    const { green, red, reset, dim } = COLORS;
+    const status = result.passed ? `${green}PASS${reset}` : `${red}FAIL${reset}`;
+    const counts = `${result.totalPass}/${result.total} scenarios`;
+    const duration = `${result.duration}ms`;
+    const skipped = result.totalSkipped ? `  skipped ${result.totalSkipped}` : '';
+    console.log(`${status}  ${counts}${skipped ? `  ${dim}${skipped}${reset}` : ''}  ${dim}${duration}${reset}`);
+}
+
+const COLORS = {
+    reset: '\x1b[0m',
+    dim: '\x1b[2m',
+    green: '\x1b[32m',
+    red: '\x1b[31m',
+    cyan: '\x1b[36m',
+};
+
+const execFileAsync = promisify(execFile);
 
 async function loadPlaywright(): Promise<typeof import('@playwright/test')> {
     try {
@@ -82,6 +104,7 @@ function parseArgs(argv: string[]): CliArgs {
         else if (arg === '--url' && rest[i + 1] !== undefined) { args.url = rest[++i] as string; }
         else if (arg === '--reporter' && rest[i + 1] !== undefined) { args.reporter = rest[++i] as 'pretty' | 'tap'; }
         else if (arg === '--timeout' && rest[i + 1] !== undefined) { args.timeout = Number(rest[++i]); }
+        else if (arg === '--json' && rest[i + 1] !== undefined) { args.json = rest[++i] as string; }
         else if (!arg.startsWith('--')) { args.globs.push(arg); }
         i++;
     }
@@ -90,6 +113,16 @@ function parseArgs(argv: string[]): CliArgs {
 }
 
 // ── Main ────────────────────────────────────────────────────────────────────────
+
+interface FileRunResult {
+    file: string;
+    result: RunResult;
+}
+
+interface RunBatchResult {
+    combined: RunResult;
+    perFile: FileRunResult[];
+}
 
 async function main(): Promise<void> {
     const args = parseArgs(process.argv);
@@ -162,10 +195,10 @@ async function main(): Promise<void> {
     }
 
     // ── Single run ──────────────────────────────────────────────────────────
-    async function runOnce(targetFiles: string[]): Promise<boolean> {
+    async function runOnce(targetFiles: string[]): Promise<RunBatchResult> {
         let manifest = await buildManifest();
         const html = args.url ? undefined : await loadHtml();
-        const allResults: RunResult[] = [];
+        const perFile: FileRunResult[] = [];
 
         for (const file of targetFiles) {
             const source = await readFile(file, 'utf8');
@@ -187,7 +220,8 @@ async function main(): Promise<void> {
                     if (args.url) await runner.navigate(args.url);
                     const executor = new Executor(runner, manifest);
                     const result = await executor.runFile(ast, undefined);
-                    allResults.push(result);
+                    perFile.push({ file, result });
+                    printFileResult(file, result);
                     await runner.teardown();
                 } finally {
                     await page?.close().catch(() => { });
@@ -197,30 +231,34 @@ async function main(): Promise<void> {
                 const runner = new JSDOMRunner({ timeout: args.timeout });
                 const executor = new Executor(runner, manifest);
                 const result = await executor.runFile(ast, html);
-                allResults.push(result);
+                perFile.push({ file, result });
+                printFileResult(file, result);
                 await runner.teardown();
             }
         }
 
         const combined: RunResult = {
-            passed: allResults.every(r => r.passed),
-            suites: allResults.flatMap(r => r.suites),
-            total: allResults.reduce((s, r) => s + r.total, 0),
-            totalPass: allResults.reduce((s, r) => s + r.totalPass, 0),
-            totalFail: allResults.reduce((s, r) => s + r.totalFail, 0),
-            totalSkipped: allResults.reduce((s, r) => s + r.totalSkipped, 0),
-            duration: allResults.reduce((s, r) => s + r.duration, 0),
+            passed: perFile.every(r => r.result.passed),
+            suites: perFile.flatMap(r => r.result.suites),
+            total: perFile.reduce((s, r) => s + r.result.total, 0),
+            totalPass: perFile.reduce((s, r) => s + r.result.totalPass, 0),
+            totalFail: perFile.reduce((s, r) => s + r.result.totalFail, 0),
+            totalSkipped: perFile.reduce((s, r) => s + r.result.totalSkipped, 0),
+            duration: perFile.reduce((s, r) => s + r.result.duration, 0),
         };
 
         const output = args.reporter === 'tap' ? formatTAP(combined) : formatPretty(combined);
         console.log(output);
-        return combined.passed;
+        printSummary(combined);
+        printGroupedSummary(perFile);
+        return { combined, perFile };
     }
 
     // ── Run once mode ───────────────────────────────────────────────────────
     if (args.subcommand === 'run') {
-        const passed = await runOnce(files);
-        process.exit(passed ? 0 : 1);
+        const summary = await runOnce(files);
+        if (args.json) await emitJsonReport(summary, args.json);
+        process.exit(summary.combined.passed ? 0 : 1);
         return;
     }
 
@@ -230,9 +268,10 @@ async function main(): Promise<void> {
     const RESET = '\x1b[0m';
     const CYAN = '\x1b[36m';
 
-    console.log(`${CYAN}xtest watch${RESET}  watching ${files.length} file(s)\u2026  ${DIM}(Ctrl+C to stop)${RESET}\n`);
+    console.log(`${CYAN}xtest watch${RESET}  watching ${files.length} file(s)…  ${DIM}(Ctrl+C to stop)${RESET}\n`);
 
-    await runOnce(files);
+    let initial = await runOnce(files);
+    if (args.json) await emitJsonReport(initial, args.json);
 
     const debounceMap = new Map<string, ReturnType<typeof setTimeout>>();
 
@@ -243,8 +282,10 @@ async function main(): Promise<void> {
             debounceMap.delete(changedFile);
             process.stdout.write(CLEAR);
             const ts = new Date().toLocaleTimeString();
-            console.log(`${CYAN}xtest watch${RESET}  ${DIM}${ts} \u2014 ${changedFile}${RESET}\n`);
-            await runOnce([changedFile]);
+            console.log(`${CYAN}xtest watch${RESET}  ${DIM}${ts} — ${changedFile}${RESET}\n`);
+            await printDiffForFile(changedFile);
+            const summary = await runOnce([changedFile]);
+            if (args.json) await emitJsonReport(summary, args.json);
         }, 120));
     }
 
@@ -288,6 +329,7 @@ function printHelp(): void {
     --html <file>        Static HTML file to mount (JSDOM mode)
     --url <url>          Live URL to test against (Playwright mode)
     --reporter <name>    Reporter: pretty (default) | tap
+    --json <file|-|stdout>  Emit machine-readable JSON summary
     --timeout <ms>       Step timeout in ms (default: 5000)
     --verbose            Show all steps, not just failures
     --help               Show this help
