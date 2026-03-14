@@ -31,6 +31,9 @@ export type TokenType =
     | 'IDENT'
     | 'VARIABLE'
     | 'COLON'
+    | 'LBRACKET'
+    | 'RBRACKET'
+    | 'EQUAL_SIGN'
     | 'INDENT'
     | 'DEDENT'
     | 'NEWLINE'
@@ -207,6 +210,24 @@ export class Lexer {
             if (ch === ':') {
                 this._advance();
                 tokens.push({ type: 'COLON', value: ':', line: startLine, column: startCol });
+                continue;
+            }
+
+            if (ch === '[') {
+                this._advance();
+                tokens.push({ type: 'LBRACKET', value: '[', line: startLine, column: startCol });
+                continue;
+            }
+
+            if (ch === ']') {
+                this._advance();
+                tokens.push({ type: 'RBRACKET', value: ']', line: startLine, column: startCol });
+                continue;
+            }
+
+            if (ch === '=') {
+                this._advance();
+                tokens.push({ type: 'EQUAL_SIGN', value: '=', line: startLine, column: startCol });
                 continue;
             }
 
