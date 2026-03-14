@@ -1,5 +1,5 @@
 /**
- * Miura — Manifest Extractor
+ * xtest — Manifest Extractor
  *
  * Reads component source files and extracts @xtest-surface blocks from JSDoc
  * comments. Also auto-discovers elements annotated with the xtest() directive
@@ -65,7 +65,7 @@ function parseXtestBlock(block: string): SurfaceElement[] {
         const elementMatch = line.match(/^@element\s+([\w-]+)\s*(.*)?$/);
         if (elementMatch) {
             if (current) elements.push(current);
-            const name     = elementMatch[1]!;
+            const name = elementMatch[1]!;
             const stratStr = (elementMatch[2] ?? '').trim();
             const strategy = parseStrategy(stratStr);
             current = { name, strategy, aliases: [] };
@@ -102,18 +102,18 @@ function parseStrategy(str: string): ResolutionStrategy {
     const [, type, value, name] = m;
 
     switch (type) {
-        case 'by-ref':         return { type: 'by-ref',         value: value! };
-        case 'by-selector':    return { type: 'by-selector',    value: value! };
-        case 'by-aria-label':  return { type: 'by-aria-label',  value: value! };
+        case 'by-ref': return { type: 'by-ref', value: value! };
+        case 'by-selector': return { type: 'by-selector', value: value! };
+        case 'by-aria-label': return { type: 'by-aria-label', value: value! };
         case 'by-role':
             return name
                 ? { type: 'by-role', value: value!, name }
                 : { type: 'by-role', value: value! };
-        case 'by-name':        return { type: 'by-name',        value: value! };
+        case 'by-name': return { type: 'by-name', value: value! };
         case 'by-placeholder': return { type: 'by-placeholder', value: value! };
-        case 'by-type':        return { type: 'by-type',        value: value! };
-        case 'by-text':        return { type: 'by-text',        value: value! };
-        default:               return { type: 'auto' };
+        case 'by-type': return { type: 'by-type', value: value! };
+        case 'by-text': return { type: 'by-text', value: value! };
+        default: return { type: 'auto' };
     }
 }
 
@@ -139,7 +139,7 @@ function extractFromXtestRefs(source: string): SurfaceElement[] {
         elements.push({
             name,
             strategy: { type: 'by-ref', value: name },
-            aliases:  [],
+            aliases: [],
         });
     }
 

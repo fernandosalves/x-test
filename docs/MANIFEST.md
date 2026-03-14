@@ -1,4 +1,4 @@
-# Miura — Surface Manifest Specification
+# xtest — Surface Manifest Specification
 
 The **Surface Manifest** is a JSDoc annotation block that declares the testable
 surface of a component. It lives co-located with the component source, is parsed
@@ -16,9 +16,9 @@ at test time by the Manifest Extractor, and feeds the Resolver.
  */
 ```
 
-- `@xtest-surface` marks the block as a Miura manifest
+- `@xtest-surface` marks the block as a xtest manifest
 - `@element` declares one testable element
-- The resolution strategy tells Miura *how* to find the element in the DOM
+- The resolution strategy tells xtest *how* to find the element in the DOM
 - `@alias` declares natural-language synonyms (optional)
 
 ---
@@ -124,7 +124,7 @@ Finds the element whose visible text content matches. Case-insensitive, trims wh
 ---
 
 ### `auto` (default, no strategy)
-When no strategy is specified, Miura infers from the element name:
+When no strategy is specified, xtest infers from the element name:
 
 | Name contains | Inference |
 |---|---|
@@ -191,7 +191,7 @@ within user-table row:2
 ## Auto-discovery via `xtest()` directive
 
 If the component uses the `xtest()` directive and no explicit `@element` entry
-exists for that ref name, Miura auto-registers the element using `by-ref` strategy:
+exists for that ref name, xtest auto-registers the element using `by-ref` strategy:
 
 ```ts
 // Component — no manifest block at all
@@ -272,7 +272,7 @@ in a co-located `.xtest-map.ts` file:
 
 ```ts
 // login-form.xtest-map.ts
-import { defineSurface } from 'miura';
+import { defineSurface } from 'xtest';
 
 export default defineSurface('login-form', {
     'username-input': {
@@ -288,5 +288,5 @@ export default defineSurface('login-form', {
 
 Pass it to the CLI:
 ```bash
-miura run login.xtest --map ./login-form.xtest-map.ts
+xtest run login.xtest --map ./login-form.xtest-map.ts
 ```

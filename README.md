@@ -1,4 +1,4 @@
-# Miura
+# xtest
 
 > Plain-language component testing. Write what you mean. The framework figures out the DOM.
 
@@ -92,7 +92,7 @@ suite UserLogin
 **Run**
 
 ```bash
-miura run login.xtest --component ./login-form.ts
+xtest run login.xtest --component ./login-form.ts
 ```
 
 ---
@@ -139,7 +139,7 @@ miura run login.xtest --component ./login-form.ts
 The cleanest way to annotate elements — no IDs, no extra attributes in production:
 
 ```ts
-import { xtest } from 'miura';
+import { xtest } from 'xtest';
 
 // In dev:  renders as  data-xtest="username"
 // In prod: xtest() is a no-op, zero DOM footprint

@@ -106,9 +106,9 @@ export function DSLPlayground(): HTMLElement {
     demo.appendChild(astPane);
     demo.appendChild(tokenPane);
 
-    const editor  = wrap.querySelector<HTMLTextAreaElement>('#xtest-editor')!;
-    const astOut  = wrap.querySelector<HTMLElement>('#ast-output')!;
-    const tokOut  = wrap.querySelector<HTMLElement>('#token-output')!;
+    const editor = wrap.querySelector<HTMLTextAreaElement>('#xtest-editor')!;
+    const astOut = wrap.querySelector<HTMLElement>('#ast-output')!;
+    const tokOut = wrap.querySelector<HTMLElement>('#token-output')!;
 
     function renderAST(file: XTestFile): void {
         const lines: string[] = [];
@@ -127,13 +127,13 @@ export function DSLPlayground(): HTMLElement {
     function renderStep(step: Step): string {
         const s = step as any;
         if (step.kind === 'action') {
-            const el  = s.element ? `<span class="step-element">${s.element.value}</span>` : '';
-            const val = s.value   ? ` <span class="step-value">"${s.value}"</span>` : s.url ? ` <span class="step-value">"${s.url}"</span>` : s.key ? ` <span class="step-value">"${s.key}"</span>` : s.ms ? ` <span class="step-value">${s.ms}ms</span>` : '';
+            const el = s.element ? `<span class="step-element">${s.element.value}</span>` : '';
+            const val = s.value ? ` <span class="step-value">"${s.value}"</span>` : s.url ? ` <span class="step-value">"${s.url}"</span>` : s.key ? ` <span class="step-value">"${s.key}"</span>` : s.ms ? ` <span class="step-value">${s.ms}ms</span>` : '';
             return `<div class="tree indent-2"><span class="step-action">${s.action}</span>${val}${el ? ' <span class="dim">→</span> ' + el : ''}</div>`;
         }
         if (step.kind === 'assert-element') {
             const neg = s.negated ? '<span class="step-assert">not </span>' : '';
-            return `<div class="tree indent-2"><span class="dim">check </span><span class="step-element">${s.element.value}</span> <span class="dim">│</span> ${neg}<span class="step-assert">${JSON.stringify(s.assertion.op).replace(/"/g,'')}</span>${s.assertion.state ? ' <span class="step-value">' + s.assertion.state + '</span>' : s.assertion.value ? ' <span class="step-value">"' + s.assertion.value + '"</span>' : ''}</div>`;
+            return `<div class="tree indent-2"><span class="dim">check </span><span class="step-element">${s.element.value}</span> <span class="dim">│</span> ${neg}<span class="step-assert">${JSON.stringify(s.assertion.op).replace(/"/g, '')}</span>${s.assertion.state ? ' <span class="step-value">' + s.assertion.state + '</span>' : s.assertion.value ? ' <span class="step-value">"' + s.assertion.value + '"</span>' : ''}</div>`;
         }
         if (step.kind === 'assert-variable') {
             return `<div class="tree indent-2"><span class="dim">check </span><span class="step-value">$${s.variable}</span> <span class="step-assert">${s.op}</span> <span class="step-value">"${s.value}"</span></div>`;
@@ -154,7 +154,7 @@ export function DSLPlayground(): HTMLElement {
     }
 
     function escHtml(s: string): string {
-        return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+        return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     }
 
     function update(): void {
@@ -178,12 +178,12 @@ DSLPlayground.storyName = '1 · DSL Live Playground — edit .xtest, see AST + t
 // ── Meta ───────────────────────────────────────────────────────────────────────
 
 const meta: Meta = {
-    title: 'Miura/01 · DSL Playground',
+    title: 'xtest/01 · DSL Playground',
     parameters: {
         docs: {
             description: {
                 component: `
-**Miura DSL** — Edit the \`.xtest\` source in the left pane.
+**xtest DSL** — Edit the \`.xtest\` source in the left pane.
 The AST (middle) and token stream (right) update live.
 
 The DSL grammar is indentation-sensitive:

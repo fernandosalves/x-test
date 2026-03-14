@@ -1,5 +1,5 @@
 /**
- * Miura — TAP v13 Reporter
+ * xtest — TAP v13 Reporter
  * Compatible with all CI systems (GitHub Actions, CircleCI, Jest, etc.)
  */
 

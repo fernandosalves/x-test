@@ -1,12 +1,12 @@
 {
-    "name": "miura",
+    "name": "xtest",
     "version": "0.1.0",
     "description": "Plain-language component testing. Write what you mean. The framework figures out the DOM.",
     "type": "module",
     "main": "./dist/index.js",
     "types": "./dist/index.d.ts",
     "bin": {
-        "miura": "./dist/cli/index.js"
+        "xtest": "./dist/cli/index.js"
     },
     "exports": {
         ".": {
@@ -23,7 +23,7 @@
         "dev": "tsc --build --watch",
         "test": "vitest run",
         "test:watch": "vitest",
-        "storybook": "storybook dev -p 6008",
+        "start": "storybook dev -p 6008",
         "build-storybook": "storybook build"
     },
     "dependencies": {

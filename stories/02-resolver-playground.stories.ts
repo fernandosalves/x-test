@@ -53,23 +53,23 @@ input[type=text]:focus { outline: 2px solid #4f46e5; border-color: transparent; 
 const DEMO_MANIFEST = defineSurface('LoginForm', {
     'username-input': {
         strategy: { type: 'by-ref', value: 'username' },
-        aliases:  ['user name', 'email', 'email address', 'login field'],
+        aliases: ['user name', 'email', 'email address', 'login field'],
     },
     'password-input': {
         strategy: { type: 'by-type', value: 'password' },
-        aliases:  ['password', 'pass', 'secret'],
+        aliases: ['password', 'pass', 'secret'],
     },
     'submit-button': {
         strategy: { type: 'by-role', value: 'button', name: 'Sign in' },
-        aliases:  ['submit', 'login button', 'sign in', 'go'],
+        aliases: ['submit', 'login button', 'sign in', 'go'],
     },
     'error-message': {
         strategy: { type: 'by-selector', value: '[role=alert]' },
-        aliases:  ['error', 'error message', 'alert', 'warning'],
+        aliases: ['error', 'error message', 'alert', 'warning'],
     },
     'dashboard': {
         strategy: { type: 'by-selector', value: 'main[data-page=dashboard]' },
-        aliases:  ['dashboard', 'home page', 'main page'],
+        aliases: ['dashboard', 'home page', 'main page'],
     },
 });
 
@@ -140,7 +140,7 @@ export function ResolverPlayground(): HTMLElement {
                     <span class="conf-badge conf-${confClass}">${confClass}</span>
                     <div>
                         <div><strong>${r.element?.name ?? '(inferred)'}</strong></div>
-                        <div>selector: <span class="selector-chip">${r.selector.length > 60 ? r.selector.slice(0,60)+'…' : r.selector}</span></div>
+                        <div>selector: <span class="selector-chip">${r.selector.length > 60 ? r.selector.slice(0, 60) + '…' : r.selector}</span></div>
                         <div style="color:#64748b;font-size:.72rem">strategy: ${stratLabel}</div>
                         ${r.warning ? `<div class="warning-line">⚠ ${r.warning}</div>` : ''}
                     </div>
@@ -152,7 +152,7 @@ export function ResolverPlayground(): HTMLElement {
                 <div class="result-item error">
                     <span class="conf-badge conf-error">no match</span>
                     <div>
-                        <div>${e instanceof Error ? e.message.replace('[miura] ', '') : String(e)}</div>
+                        <div>${e instanceof Error ? e.message.replace('[xtest] ', '') : String(e)}</div>
                         ${err.candidates?.length ? `<div style="color:#64748b;font-size:.72rem;margin-top:.2rem">Candidates: ${err.candidates.map(c => `"${c}"`).join(', ')}</div>` : ''}
                     </div>
                 </div>
@@ -252,8 +252,8 @@ export function ManifestExtractor(): HTMLElement {
     demo.appendChild(leftCard);
     demo.appendChild(rightCard);
 
-    const editor  = wrap.querySelector<HTMLTextAreaElement>('#comp-editor')!;
-    const out     = wrap.querySelector<HTMLElement>('#manifest-out')!;
+    const editor = wrap.querySelector<HTMLTextAreaElement>('#comp-editor')!;
+    const out = wrap.querySelector<HTMLElement>('#manifest-out')!;
 
     function colorize(json: string): string {
         return json
@@ -283,7 +283,7 @@ ManifestExtractor.storyName = '2 · Manifest Extractor — live @xtest-surface p
 // ── Meta ───────────────────────────────────────────────────────────────────────
 
 const meta: Meta = {
-    title: 'Miura/02 · Resolver',
+    title: 'xtest/02 · Resolver',
     parameters: {
         docs: {
             description: {

@@ -1,5 +1,5 @@
 /**
- * Miura — Resolution strategies
+ * xtest — Resolution strategies
  *
  * Each strategy converts a SurfaceElement into a concrete CSS selector
  * that the runner can pass to querySelector / Playwright locator.
@@ -8,8 +8,8 @@
 import type { ResolutionStrategy } from '../manifest/types.js';
 
 export interface ResolvedSelector {
-    selector:  string;
-    strategy:  string;
+    selector: string;
+    strategy: string;
     needsText?: string;  // for by-text: use textContent matching
 }
 
@@ -29,19 +29,19 @@ export function strategyToSelector(s: ResolutionStrategy): ResolvedSelector {
 
         case 'by-role': {
             const ROLE_NATIVE: Record<string, string> = {
-                button:   'button, [role="button"]',
-                link:     'a, [role="link"]',
-                textbox:  'input:not([type=checkbox]):not([type=radio]):not([type=submit]):not([type=button]), textarea, [role="textbox"]',
+                button: 'button, [role="button"]',
+                link: 'a, [role="link"]',
+                textbox: 'input:not([type=checkbox]):not([type=radio]):not([type=submit]):not([type=button]), textarea, [role="textbox"]',
                 checkbox: 'input[type="checkbox"], [role="checkbox"]',
-                radio:    'input[type="radio"], [role="radio"]',
+                radio: 'input[type="radio"], [role="radio"]',
                 combobox: 'select, [role="combobox"]',
-                listbox:  '[role="listbox"]',
-                option:   'option, [role="option"]',
-                alert:    '[role="alert"], .alert, .error',
-                dialog:   'dialog, [role="dialog"]',
-                heading:  'h1, h2, h3, h4, h5, h6, [role="heading"]',
-                img:      'img, [role="img"]',
-                list:     'ul, ol, [role="list"]',
+                listbox: '[role="listbox"]',
+                option: 'option, [role="option"]',
+                alert: '[role="alert"], .alert, .error',
+                dialog: 'dialog, [role="dialog"]',
+                heading: 'h1, h2, h3, h4, h5, h6, [role="heading"]',
+                img: 'img, [role="img"]',
+                list: 'ul, ol, [role="list"]',
                 listitem: 'li, [role="listitem"]',
             };
             const base = ROLE_NATIVE[s.value] ?? `[role="${s.value}"]`;

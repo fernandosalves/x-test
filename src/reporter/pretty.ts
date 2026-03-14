@@ -1,20 +1,20 @@
 /**
- * Miura — Pretty stdout reporter
+ * xtest — Pretty stdout reporter
  * Coloured, human-readable output for CLI use.
  */
 
 import type { RunResult, SuiteResult, ScenarioResult, StepResult } from '../runner/runner.js';
 
 const C = {
-    reset:  '\x1b[0m',
-    bold:   '\x1b[1m',
-    dim:    '\x1b[2m',
-    green:  '\x1b[32m',
-    red:    '\x1b[31m',
+    reset: '\x1b[0m',
+    bold: '\x1b[1m',
+    dim: '\x1b[2m',
+    green: '\x1b[32m',
+    red: '\x1b[31m',
     yellow: '\x1b[33m',
-    cyan:   '\x1b[36m',
-    white:  '\x1b[37m',
-    gray:   '\x1b[90m',
+    cyan: '\x1b[36m',
+    white: '\x1b[37m',
+    gray: '\x1b[90m',
 };
 
 const NO_COLOR = typeof process !== 'undefined' && (process.env['NO_COLOR'] || !process.stdout?.isTTY);
@@ -27,7 +27,7 @@ export function formatPretty(result: RunResult): string {
     const lines: string[] = [];
 
     lines.push('');
-    lines.push(c('bold', c('white', 'Miura')));
+    lines.push(c('bold', c('white', 'xtest')));
     lines.push('');
 
     for (const suite of result.suites) {
@@ -40,14 +40,14 @@ export function formatPretty(result: RunResult): string {
                 continue;
             }
             const focusMarker = scenario.focused ? c('yellow', ' ◆') : '';
-            const icon   = scenario.passed ? c('green', '  ✓') : c('red', '  ✗');
-            const desc   = scenario.passed
+            const icon = scenario.passed ? c('green', '  ✓') : c('red', '  ✗');
+            const desc = scenario.passed
                 ? c('white', scenario.description)
                 : c('bold', c('red', scenario.description));
-            const time   = c('gray', `(${scenario.duration}ms)`);
+            const time = c('gray', `(${scenario.duration}ms)`);
             lines.push(`${icon}${focusMarker}  ${desc}  ${time}`);
 
-            if (!scenario.passed || process.env['MIURA_VERBOSE']) {
+            if (!scenario.passed || process.env['xtest_VERBOSE']) {
                 for (const step of scenario.steps) {
                     lines.push(formatStep(step, scenario.passed));
                 }
@@ -59,8 +59,8 @@ export function formatPretty(result: RunResult): string {
     // Summary bar
     const passed = result.totalPass;
     const failed = result.totalFail;
-    const total  = result.total;
-    const bar    = buildBar(passed, total);
+    const total = result.total;
+    const bar = buildBar(passed, total);
 
     lines.push(bar);
     lines.push('');
@@ -79,11 +79,11 @@ export function formatPretty(result: RunResult): string {
 function formatStep(step: StepResult, scenarioPassed: boolean): string {
     const prefix = step.passed
         ? c('green', '     ✓  ')
-        : c('red',   '     ✗  ');
+        : c('red', '     ✗  ');
 
     const label = step.passed
         ? c('gray', step.step)
-        : c('red',  step.step);
+        : c('red', step.step);
 
     const time = c('gray', `${step.duration}ms`);
 
@@ -101,10 +101,10 @@ function formatStep(step: StepResult, scenarioPassed: boolean): string {
 
 function buildBar(pass: number, total: number): string {
     if (total === 0) return '';
-    const width  = 40;
+    const width = 40;
     const filled = Math.round((pass / total) * width);
-    const empty  = width - filled;
-    const bar    = '█'.repeat(filled) + '░'.repeat(empty);
-    const color  = pass === total ? 'green' : pass === 0 ? 'red' : 'yellow';
+    const empty = width - filled;
+    const bar = '█'.repeat(filled) + '░'.repeat(empty);
+    const color = pass === total ? 'green' : pass === 0 ? 'red' : 'yellow';
     return `  ${c(color, bar)}  ${pass}/${total}`;
 }

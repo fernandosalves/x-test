@@ -1,12 +1,12 @@
 /**
- * Miura — Playwright Runner
+ * xtest — Playwright Runner
  *
- * Adapts Miura's MiuraRunner interface to a Playwright Page object.
+ * Adapts xtest's xtestRunner interface to a Playwright Page object.
  * Requires @playwright/test as a peer dependency.
  *
  * Usage:
  *   import { chromium } from '@playwright/test';
- *   import { PlaywrightRunner, Executor } from 'miura';
+ *   import { PlaywrightRunner, Executor } from 'xtest';
  *
  *   const browser = await chromium.launch();
  *   const page    = await browser.newPage();
@@ -15,7 +15,7 @@
  *   await browser.close();
  */
 
-import type { MiuraRunner } from './runner.js';
+import type { xtestRunner } from './runner.js';
 import type { SpyCall } from '../parser/ast.js';
 
 // ── Minimal Playwright Page / Locator types ──────────────────────────────────
@@ -52,16 +52,16 @@ interface PwPage {
 
 // ── PlaywrightRunner ─────────────────────────────────────────────────────────
 
-export class PlaywrightRunner implements MiuraRunner {
-    private _page:        PwPage;
-    private _scopeStack:  PwLocator[] = [];
-    private _spyRegistry:  Map<string, SpyCall[]>                                     = new Map();
-    private _mockRoutes:   Map<string, { status: number; body: string | undefined }>  = new Map();
-    private _requestLog:   Map<string, import('../parser/ast.js').RequestCall[]>       = new Map();
-    private _timeout:      number;
+export class PlaywrightRunner implements xtestRunner {
+    private _page: PwPage;
+    private _scopeStack: PwLocator[] = [];
+    private _spyRegistry: Map<string, SpyCall[]> = new Map();
+    private _mockRoutes: Map<string, { status: number; body: string | undefined }> = new Map();
+    private _requestLog: Map<string, import('../parser/ast.js').RequestCall[]> = new Map();
+    private _timeout: number;
 
     constructor(page: PwPage, opts: { timeout?: number } = {}) {
-        this._page    = page;
+        this._page = page;
         this._timeout = opts.timeout ?? 10_000;
     }
 
@@ -116,7 +116,7 @@ export class PlaywrightRunner implements MiuraRunner {
 
     async waitFor(selector: string, timeoutMs?: number): Promise<void> {
         await this._loc(selector).waitFor({
-            state:   'visible',
+            state: 'visible',
             timeout: timeoutMs ?? this._timeout,
         });
     }
@@ -232,10 +232,10 @@ export class PlaywrightRunner implements MiuraRunner {
             // @ts-ignore — axe is injected at runtime
             axe.run(sel ? document.querySelector(sel) : document)
                 .then((r: any) => r.violations.map((v: any) => ({
-                    id:          v.id,
+                    id: v.id,
                     description: v.description,
-                    impact:      v.impact ?? null,
-                    nodes:       v.nodes.map((n: any) => n.html),
+                    impact: v.impact ?? null,
+                    nodes: v.nodes.map((n: any) => n.html),
                 }))),
             selector,
         );

@@ -1,10 +1,10 @@
 #!/usr/bin/env node
 /**
- * Miura CLI — miura run
+ * xtest CLI — xtest run
  *
  * Usage:
- *   miura run   <glob> [options]   Run .xtest files once
- *   miura watch <glob> [options]   Re-run on every .xtest save
+ *   xtest run   <glob> [options]   Run .xtest files once
+ *   xtest watch <glob> [options]   Re-run on every .xtest save
  *
  *   --component <file>   Component source to extract manifest from
  *   --map <file>         Explicit .xtest-map.ts manifest file
@@ -33,15 +33,15 @@ import type { RunResult } from '../runner/runner.js';
 
 interface CliArgs {
     subcommand: 'run' | 'watch';
-    globs:      string[];
+    globs: string[];
     component?: string;
-    map?:       string;
-    html?:      string;
-    url?:       string;
-    reporter:   'pretty' | 'tap';
-    timeout:    number;
-    verbose:    boolean;
-    help:       boolean;
+    map?: string;
+    html?: string;
+    url?: string;
+    reporter: 'pretty' | 'tap';
+    timeout: number;
+    verbose: boolean;
+    help: boolean;
 }
 
 function parseArgs(argv: string[]): CliArgs {
@@ -55,24 +55,24 @@ function parseArgs(argv: string[]): CliArgs {
 
     const args: CliArgs = {
         subcommand,
-        globs:    [],
+        globs: [],
         reporter: 'pretty',
-        timeout:  5000,
-        verbose:  false,
-        help:     false,
+        timeout: 5000,
+        verbose: false,
+        help: false,
     };
 
     while (i < rest.length) {
         const arg = rest[i]!;
-        if (arg === '--help' || arg === '-h')           { args.help    = true; }
-        else if (arg === '--verbose' || arg === '-v')   { args.verbose = true; }
+        if (arg === '--help' || arg === '-h') { args.help = true; }
+        else if (arg === '--verbose' || arg === '-v') { args.verbose = true; }
         else if (arg === '--component' && rest[i + 1] !== undefined) { args.component = rest[++i] as string; }
-        else if (arg === '--map'       && rest[i + 1] !== undefined) { args.map       = rest[++i] as string; }
-        else if (arg === '--html'      && rest[i + 1] !== undefined) { args.html      = rest[++i] as string; }
-        else if (arg === '--url'       && rest[i + 1] !== undefined) { args.url       = rest[++i] as string; }
-        else if (arg === '--reporter'  && rest[i + 1] !== undefined) { args.reporter  = rest[++i] as 'pretty' | 'tap'; }
-        else if (arg === '--timeout'   && rest[i + 1] !== undefined) { args.timeout   = Number(rest[++i]); }
-        else if (!arg.startsWith('--'))                 { args.globs.push(arg); }
+        else if (arg === '--map' && rest[i + 1] !== undefined) { args.map = rest[++i] as string; }
+        else if (arg === '--html' && rest[i + 1] !== undefined) { args.html = rest[++i] as string; }
+        else if (arg === '--url' && rest[i + 1] !== undefined) { args.url = rest[++i] as string; }
+        else if (arg === '--reporter' && rest[i + 1] !== undefined) { args.reporter = rest[++i] as 'pretty' | 'tap'; }
+        else if (arg === '--timeout' && rest[i + 1] !== undefined) { args.timeout = Number(rest[++i]); }
+        else if (!arg.startsWith('--')) { args.globs.push(arg); }
         i++;
     }
 
@@ -89,7 +89,7 @@ async function main(): Promise<void> {
         process.exit(0);
     }
 
-    if (args.verbose) process.env['MIURA_VERBOSE'] = '1';
+    if (args.verbose) process.env['xtest_VERBOSE'] = '1';
 
     const { readdirSync, statSync, watch: fsWatch } = await import('node:fs');
 
@@ -131,7 +131,7 @@ async function main(): Promise<void> {
     const files = [...new Set(args.globs.flatMap(findXTests))];
 
     if (files.length === 0) {
-        console.error('[miura] No .xtest files matched the provided patterns.');
+        console.error('[xtest] No .xtest files matched the provided patterns.');
         process.exit(1);
     }
 
@@ -147,40 +147,40 @@ async function main(): Promise<void> {
 
     async function loadHtml(): Promise<string | undefined> {
         if (args.html) return readFile(resolve(args.html), 'utf8');
-        if (!args.url)  return `<!DOCTYPE html><html><body></body></html>`;
+        if (!args.url) return `<!DOCTYPE html><html><body></body></html>`;
         return undefined;
     }
 
     // ── Single run ──────────────────────────────────────────────────────────
     async function runOnce(targetFiles: string[]): Promise<boolean> {
         let manifest = await buildManifest();
-        const html   = await loadHtml();
+        const html = await loadHtml();
         const allResults: RunResult[] = [];
 
         for (const file of targetFiles) {
             const source = await readFile(file, 'utf8');
-            const ast    = parseXTest(source, file);
+            const ast = parseXTest(source, file);
 
             if (Object.keys(manifest.elements).length === 0) {
                 const autoFile = file.replace(/\.xtest$/, '.ts');
                 try { manifest = await extractManifestFromFile(autoFile); } catch { /* inference mode */ }
             }
 
-            const runner   = new JSDOMRunner({ timeout: args.timeout });
+            const runner = new JSDOMRunner({ timeout: args.timeout });
             const executor = new Executor(runner, manifest);
-            const result   = await executor.runFile(ast, html);
+            const result = await executor.runFile(ast, html);
             allResults.push(result);
             await runner.teardown();
         }
 
         const combined: RunResult = {
-            passed:       allResults.every(r => r.passed),
-            suites:       allResults.flatMap(r => r.suites),
-            total:        allResults.reduce((s, r) => s + r.total,        0),
-            totalPass:    allResults.reduce((s, r) => s + r.totalPass,    0),
-            totalFail:    allResults.reduce((s, r) => s + r.totalFail,    0),
+            passed: allResults.every(r => r.passed),
+            suites: allResults.flatMap(r => r.suites),
+            total: allResults.reduce((s, r) => s + r.total, 0),
+            totalPass: allResults.reduce((s, r) => s + r.totalPass, 0),
+            totalFail: allResults.reduce((s, r) => s + r.totalFail, 0),
             totalSkipped: allResults.reduce((s, r) => s + r.totalSkipped, 0),
-            duration:     allResults.reduce((s, r) => s + r.duration,     0),
+            duration: allResults.reduce((s, r) => s + r.duration, 0),
         };
 
         const output = args.reporter === 'tap' ? formatTAP(combined) : formatPretty(combined);
@@ -197,11 +197,11 @@ async function main(): Promise<void> {
 
     // ── Watch mode ──────────────────────────────────────────────────────────
     const CLEAR = '\x1Bc';
-    const DIM   = '\x1b[2m';
+    const DIM = '\x1b[2m';
     const RESET = '\x1b[0m';
-    const CYAN  = '\x1b[36m';
+    const CYAN = '\x1b[36m';
 
-    console.log(`${CYAN}miura watch${RESET}  watching ${files.length} file(s)\u2026  ${DIM}(Ctrl+C to stop)${RESET}\n`);
+    console.log(`${CYAN}xtest watch${RESET}  watching ${files.length} file(s)\u2026  ${DIM}(Ctrl+C to stop)${RESET}\n`);
 
     await runOnce(files);
 
@@ -214,7 +214,7 @@ async function main(): Promise<void> {
             debounceMap.delete(changedFile);
             process.stdout.write(CLEAR);
             const ts = new Date().toLocaleTimeString();
-            console.log(`${CYAN}miura watch${RESET}  ${DIM}${ts} \u2014 ${changedFile}${RESET}\n`);
+            console.log(`${CYAN}xtest watch${RESET}  ${DIM}${ts} \u2014 ${changedFile}${RESET}\n`);
             await runOnce([changedFile]);
         }, 120));
     }
@@ -247,11 +247,11 @@ async function main(): Promise<void> {
 
 function printHelp(): void {
     console.log(`
-  ${'\x1b[1m'}miura\x1b[0m — Plain-language component testing
+  ${'\x1b[1m'}xtest\x1b[0m — Plain-language component testing
 
   \x1b[1mUsage:\x1b[0m
-    miura run   <glob> [options]    Run .xtest files once
-    miura watch <glob> [options]    Re-run on every .xtest save
+    xtest run   <glob> [options]    Run .xtest files once
+    xtest watch <glob> [options]    Re-run on every .xtest save
 
   \x1b[1mOptions:\x1b[0m
     --component <file>   Component source to extract manifest from
@@ -264,14 +264,14 @@ function printHelp(): void {
     --help               Show this help
 
   \x1b[1mExamples:\x1b[0m
-    miura run   "**/*.xtest"
-    miura watch "**/*.xtest"
-    miura run   login.xtest --component ./login-form.ts
-    miura run   login.xtest --html ./index.html --reporter tap
+    xtest run   "**/*.xtest"
+    xtest watch "**/*.xtest"
+    xtest run   login.xtest --component ./login-form.ts
+    xtest run   login.xtest --html ./index.html --reporter tap
 `);
 }
 
 main().catch(err => {
-    console.error('[miura] Fatal error:', err);
+    console.error('[xtest] Fatal error:', err);
     process.exit(1);
 });

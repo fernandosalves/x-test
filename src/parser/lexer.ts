@@ -1,5 +1,5 @@
 /**
- * Miura — Lexer
+ * xtest — Lexer
  *
  * Converts a raw .xtest file string into a flat token stream.
  * Indentation-sensitive: emits INDENT / DEDENT tokens.
@@ -36,118 +36,118 @@ export type TokenType =
     | 'EOF';
 
 export interface Token {
-    type:   TokenType;
-    value:  string;
-    line:   number;
+    type: TokenType;
+    value: string;
+    line: number;
     column: number;
 }
 
 // ── Keyword map ─────────────────────────────────────────────────────────────────
 
 const KEYWORDS: Record<string, TokenType> = {
-    suite:          'SUITE',
-    scenario:       'SCENARIO',
-    xscenario:      'XSCENARIO',
-    xsuite:         'XSUITE',
-    only:           'ONLY',
-    given:          'GIVEN',
-    setup:          'SETUP',
-    teardown:       'TEARDOWN',
-    within:         'WITHIN',
-    beforeeach:     'BEFORE_EACH',
-    'before-each':  'BEFORE_EACH',
-    aftereach:      'AFTER_EACH',
-    'after-each':   'AFTER_EACH',
-    type:           'TYPE',
-    click:          'CLICK',
-    select:         'SELECT',
-    clear:          'CLEAR',
-    hover:          'HOVER',
-    scroll:         'SCROLL',
-    wait:           'WAIT',
-    navigate:       'NAVIGATE',
-    reload:         'RELOAD',
-    press:          'PRESS',
-    store:          'STORE',
-    check:          'CHECK',
-    into:           'INTO',
-    in:             'IN',
-    for:            'FOR',
-    to:             'TO',
-    as:             'AS',
-    on:             'ON',
-    page:           'PAGE',
-    ms:             'MS',
-    is:             'IS',
-    not:            'NOT',
-    no:             'NOT',
-    contains:       'CONTAINS',
-    has:            'HAS',
-    equals:         'EQUALS',
-    matches:        'MATCHES',
-    value:          'VALUE',
-    text:           'TEXT',
-    prop:           'PROP',
-    attr:           'ATTR',
-    count:          'COUNT',
-    component:      'COMPONENT',
-    loaded:         'LOADED',
-    fixture:        'FIXTURE',
-    applied:        'APPLIED',
-    mock:            'MOCK',
-    request:        'REQUEST',
-    made:           'MADE',
-    delay:          'DELAY',
-    function:       'FUNCTION_KW',
-    focusable:      'FOCUSABLE',
-    accessible:     'ACCESSIBLE',
-    name:           'NAME_KW',
-    alt:            'ALT',
-    a11y:           'A11Y',
-    violations:     'VIOLATIONS',
-    blur:           'BLUR',
-    fill:           'FILL',
-    reset:          'RESET',
-    empty:          'EMPTY',
-    aria:           'ARIA',
-    role:           'ROLE_KW',
-    screenshot:     'SCREENSHOT',
-    take:           'TAKE',
-    spy:            'SPY',
-    register:       'REGISTER',
-    was:            'WAS',
-    called:         'CALLED',
-    returned:       'RETURNED_KW',
-    returning:      'RETURNING',
-    times:          'TIMES',
-    once:           'ONCE',
-    with:           'WITH_KW',
-    never:          'NEVER_KW',
-    last:           'LAST',
-    class:          'CLASS',
-    focus:          'FOCUS_KW',
-    focused:        'FOCUS_KW',
-    visible:        'VISIBLE',
-    hidden:         'HIDDEN',
-    absent:         'ABSENT',
-    present:        'PRESENT',
-    enabled:        'ENABLED',
-    disabled:       'DISABLED',
-    checked:        'CHECKED',
-    unchecked:      'UNCHECKED',
-    readonly:       'READONLY',
+    suite: 'SUITE',
+    scenario: 'SCENARIO',
+    xscenario: 'XSCENARIO',
+    xsuite: 'XSUITE',
+    only: 'ONLY',
+    given: 'GIVEN',
+    setup: 'SETUP',
+    teardown: 'TEARDOWN',
+    within: 'WITHIN',
+    beforeeach: 'BEFORE_EACH',
+    'before-each': 'BEFORE_EACH',
+    aftereach: 'AFTER_EACH',
+    'after-each': 'AFTER_EACH',
+    type: 'TYPE',
+    click: 'CLICK',
+    select: 'SELECT',
+    clear: 'CLEAR',
+    hover: 'HOVER',
+    scroll: 'SCROLL',
+    wait: 'WAIT',
+    navigate: 'NAVIGATE',
+    reload: 'RELOAD',
+    press: 'PRESS',
+    store: 'STORE',
+    check: 'CHECK',
+    into: 'INTO',
+    in: 'IN',
+    for: 'FOR',
+    to: 'TO',
+    as: 'AS',
+    on: 'ON',
+    page: 'PAGE',
+    ms: 'MS',
+    is: 'IS',
+    not: 'NOT',
+    no: 'NOT',
+    contains: 'CONTAINS',
+    has: 'HAS',
+    equals: 'EQUALS',
+    matches: 'MATCHES',
+    value: 'VALUE',
+    text: 'TEXT',
+    prop: 'PROP',
+    attr: 'ATTR',
+    count: 'COUNT',
+    component: 'COMPONENT',
+    loaded: 'LOADED',
+    fixture: 'FIXTURE',
+    applied: 'APPLIED',
+    mock: 'MOCK',
+    request: 'REQUEST',
+    made: 'MADE',
+    delay: 'DELAY',
+    function: 'FUNCTION_KW',
+    focusable: 'FOCUSABLE',
+    accessible: 'ACCESSIBLE',
+    name: 'NAME_KW',
+    alt: 'ALT',
+    a11y: 'A11Y',
+    violations: 'VIOLATIONS',
+    blur: 'BLUR',
+    fill: 'FILL',
+    reset: 'RESET',
+    empty: 'EMPTY',
+    aria: 'ARIA',
+    role: 'ROLE_KW',
+    screenshot: 'SCREENSHOT',
+    take: 'TAKE',
+    spy: 'SPY',
+    register: 'REGISTER',
+    was: 'WAS',
+    called: 'CALLED',
+    returned: 'RETURNED_KW',
+    returning: 'RETURNING',
+    times: 'TIMES',
+    once: 'ONCE',
+    with: 'WITH_KW',
+    never: 'NEVER_KW',
+    last: 'LAST',
+    class: 'CLASS',
+    focus: 'FOCUS_KW',
+    focused: 'FOCUS_KW',
+    visible: 'VISIBLE',
+    hidden: 'HIDDEN',
+    absent: 'ABSENT',
+    present: 'PRESENT',
+    enabled: 'ENABLED',
+    disabled: 'DISABLED',
+    checked: 'CHECKED',
+    unchecked: 'UNCHECKED',
+    readonly: 'READONLY',
 };
 
 // ── Lexer ───────────────────────────────────────────────────────────────────────
 
 export class Lexer {
-    private _src:     string;
-    private _pos:     number    = 0;
-    private _line:    number    = 1;
-    private _col:     number    = 1;
-    private _file?:   string;
-    private _indents: number[]  = [0];
-    private _pending: Token[]   = [];
+    private _src: string;
+    private _pos: number = 0;
+    private _line: number = 1;
+    private _col: number = 1;
+    private _file?: string;
+    private _indents: number[] = [0];
+    private _pending: Token[] = [];
 
     constructor(source: string, file?: string) {
         this._src = source;
@@ -183,7 +183,7 @@ export class Lexer {
             // Re-read ch AFTER _handleIndent() may have advanced past leading spaces
             const ch = this._src[this._pos]!;
             const startLine = this._line;
-            const startCol  = this._col;
+            const startCol = this._col;
 
             // String literal
             if (ch === '"') {
@@ -237,7 +237,7 @@ export class Lexer {
 
         while (this._pos < this._src.length) {
             const ch = this._src[this._pos];
-            if (ch === ' ')  { spaces++; this._advance(); }
+            if (ch === ' ') { spaces++; this._advance(); }
             else if (ch === '\t') { spaces += 2; this._advance(); } // treat tab as 2 spaces
             else break;
         }
@@ -309,7 +309,7 @@ export class Lexer {
 
         // Handle multi-word keywords: "double-click", "right-click", "scroll-to"
         const lower = word.toLowerCase();
-        const type  = KEYWORDS[lower] ?? 'IDENT';
+        const type = KEYWORDS[lower] ?? 'IDENT';
         return { type, value: word, line, column: col };
     }
 

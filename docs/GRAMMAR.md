@@ -1,4 +1,4 @@
-# Miura — DSL Grammar
+# xtest — DSL Grammar
 
 The `.xtest` file format uses an indentation-sensitive plain-language grammar.
 This document is the authoritative specification.
@@ -346,7 +346,7 @@ check <element> is not visible
 
 ## Accessibility Testing
 
-Miura has first-class a11y support through four assertion types and an **axe-core** integration for automated scanning.
+xtest has first-class a11y support through four assertion types and an **axe-core** integration for automated scanning.
 
 ### Focusability
 
@@ -387,7 +387,7 @@ check login-form has no a11y violations     # scoped to an element subtree
 
 **Error output example:**
 ```
-[miura] Accessibility violations found:
+[xtest] Accessibility violations found:
   • [critical] image-alt: Ensures <img> elements have alternate text
     Nodes: <img src="hero.png">
   • [serious] label: Ensures every form element has a label
@@ -420,7 +420,7 @@ suite Accessibility — Login Form
 
 ## Network Mocks
 
-Miura intercepts `fetch` (JSDOM) or uses `page.route()` (Playwright) automatically — no MSW setup required. Mocks and call logs **auto-reset between scenarios**.
+xtest intercepts `fetch` (JSDOM) or uses `page.route()` (Playwright) automatically — no MSW setup required. Mocks and call logs **auto-reset between scenarios**.
 
 ### Registering mocks
 
@@ -436,7 +436,7 @@ mock DELETE "/api/item/1" with status 204
 - `with delay N ms` is optional — simulates network latency (in ms)
 - Both modifiers can appear together in any order
 - `returning "body"` is optional — defaults to empty body
-- Unregistered requests throw a clear error: `[miura] No mock registered for GET /api/data`
+- Unregistered requests throw a clear error: `[xtest] No mock registered for GET /api/data`
 
 ### Mock with delay
 

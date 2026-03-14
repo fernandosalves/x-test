@@ -1,5 +1,5 @@
 /**
- * Miura — Parser
+ * xtest — Parser
  *
  * Consumes the token stream from the Lexer and produces a typed XTestFile AST.
  */
@@ -24,14 +24,14 @@ import type {
 
 export class ParseError extends Error {
     constructor(message: string, public readonly loc: Loc) {
-        super(`[miura] Parse error at ${loc.file ?? '<input>'}:${loc.line}:${loc.column} — ${message}`);
+        super(`[xtest] Parse error at ${loc.file ?? '<input>'}:${loc.line}:${loc.column} — ${message}`);
     }
 }
 
 export class Parser {
     private _tokens: Token[];
-    private _pos:    number = 0;
-    private _file?:  string;
+    private _pos: number = 0;
+    private _file?: string;
 
     constructor(tokens: Token[], file?: string) {
         this._tokens = tokens;
@@ -43,11 +43,11 @@ export class Parser {
         while (!this._at('EOF')) {
             this._skipNewlines();
             if (this._at('EOF')) break;
-            if (this._at('SUITE'))      { suites.push(this._parseSuite(false, false)); }
+            if (this._at('SUITE')) { suites.push(this._parseSuite(false, false)); }
             else if (this._at('XSUITE')) { suites.push(this._parseSuite(true, false)); }
-            else if (this._at('ONLY'))   {
+            else if (this._at('ONLY')) {
                 this._advance();
-                if (this._at('SUITE'))  { suites.push(this._parseSuite(false, true)); }
+                if (this._at('SUITE')) { suites.push(this._parseSuite(false, true)); }
                 else this._advance();
             } else {
                 this._advance();
@@ -61,18 +61,18 @@ export class Parser {
     // ── Suite ─────────────────────────────────────────────────────────────────
 
     private _parseSuite(skipped = false, focused = false): SuiteNode {
-        const loc  = this._loc();
+        const loc = this._loc();
         if (skipped) this._expect('XSUITE');
-        else         this._expect('SUITE');
+        else this._expect('SUITE');
         const name = this._expectIdent('suite name');
 
         this._skipNewlines();
         this._expect('INDENT');
 
-        let setup:      Step[] = [];
-        let teardown:   Step[] = [];
+        let setup: Step[] = [];
+        let teardown: Step[] = [];
         let beforeEach: Step[] = [];
-        let afterEach:  Step[] = [];
+        let afterEach: Step[] = [];
         const scenarios: ScenarioNode[] = [];
 
         while (!this._at('DEDENT') && !this._at('EOF')) {
@@ -101,11 +101,11 @@ export class Parser {
                 this._expect('INDENT');
                 afterEach = this._parseSteps();
                 this._tryExpect('DEDENT');
-            } else if (this._at('SCENARIO'))  { scenarios.push(this._parseScenario(false, false)); }
-            else if (this._at('XSCENARIO'))    { scenarios.push(this._parseScenario(true, false)); }
+            } else if (this._at('SCENARIO')) { scenarios.push(this._parseScenario(false, false)); }
+            else if (this._at('XSCENARIO')) { scenarios.push(this._parseScenario(true, false)); }
             else if (this._at('ONLY')) {
                 this._advance();
-                if (this._at('SCENARIO'))      { scenarios.push(this._parseScenario(false, true)); }
+                if (this._at('SCENARIO')) { scenarios.push(this._parseScenario(false, true)); }
                 else this._advance();
             } else {
                 this._advance();
@@ -121,7 +121,7 @@ export class Parser {
     private _parseScenario(skipped = false, focused = false): ScenarioNode {
         const loc = this._loc();
         if (skipped) this._expect('XSCENARIO');
-        else         this._expect('SCENARIO');
+        else this._expect('SCENARIO');
         const description = this._expectString('scenario description');
 
         this._skipNewlines();
@@ -162,32 +162,32 @@ export class Parser {
         if (!tok) return null;
 
         switch (tok.type) {
-            case 'TYPE':     return this._parseTypeStep();
-            case 'CLICK':    return this._parseClickStep('click');
-            case 'SELECT':   return this._parseSelectStep();
-            case 'CLEAR':    return this._parseClearStep();
-            case 'HOVER':    return this._parseHoverStep();
-            case 'SCROLL':   return this._parseScrollStep();
-            case 'WAIT':     return this._parseWaitStep();
+            case 'TYPE': return this._parseTypeStep();
+            case 'CLICK': return this._parseClickStep('click');
+            case 'SELECT': return this._parseSelectStep();
+            case 'CLEAR': return this._parseClearStep();
+            case 'HOVER': return this._parseHoverStep();
+            case 'SCROLL': return this._parseScrollStep();
+            case 'WAIT': return this._parseWaitStep();
             case 'NAVIGATE': return this._parseNavigateStep();
-            case 'RELOAD':   return this._parseReloadStep();
-            case 'PRESS':    return this._parsePressStep();
-            case 'CHECK':    return this._parseCheckStep();
-            case 'STORE':    return this._parseStoreStep();
-            case 'WITHIN':   return this._parseWithinStep();
+            case 'RELOAD': return this._parseReloadStep();
+            case 'PRESS': return this._parsePressStep();
+            case 'CHECK': return this._parseCheckStep();
+            case 'STORE': return this._parseStoreStep();
+            case 'WITHIN': return this._parseWithinStep();
             case 'FOCUS_KW': return this._parseFocusStep();
-            case 'COMPONENT':return this._parseLoadComponentStep();
-            case 'FIXTURE':  return this._parseApplyFixtureStep();
+            case 'COMPONENT': return this._parseLoadComponentStep();
+            case 'FIXTURE': return this._parseApplyFixtureStep();
             case 'REGISTER': return this._parseRegisterSpyStep();
-            case 'RESET':    return this._parseResetSpyStep();
-            case 'BLUR':     return this._parseBlurStep();
-            case 'FILL':     return this._parseFillStep();
-            case 'TAKE':     return this._parseTakeScreenshotStep();
-            case 'MOCK':     return this._parseMockRequestStep();
+            case 'RESET': return this._parseResetSpyStep();
+            case 'BLUR': return this._parseBlurStep();
+            case 'FILL': return this._parseFillStep();
+            case 'TAKE': return this._parseTakeScreenshotStep();
+            case 'MOCK': return this._parseMockRequestStep();
             case 'IDENT':
                 // Handle "double-click" and "right-click" as IDENT tokens
                 if (tok.value.toLowerCase() === 'double-click') return this._parseClickStep('double-click');
-                if (tok.value.toLowerCase() === 'right-click')  return this._parseClickStep('right-click');
+                if (tok.value.toLowerCase() === 'right-click') return this._parseClickStep('right-click');
                 this._advance();
                 return null;
             default:
@@ -201,7 +201,7 @@ export class Parser {
     private _parseTypeStep(): Step {
         const loc = this._loc();
         this._expect('TYPE');
-        const value   = this._expectString('"text to type"');
+        const value = this._expectString('"text to type"');
         this._expect('INTO');
         const element = this._parseElementRef();
         return { kind: 'action', action: 'type', element, value, loc } as TypeAction & { kind: 'action' };
@@ -219,7 +219,7 @@ export class Parser {
         this._expect('SELECT');
         let by: 'label' | 'value' = 'label';
         if (this._at('VALUE')) { this._advance(); by = 'value'; }
-        const value   = this._expectString('"option text or value"');
+        const value = this._expectString('"option text or value"');
         this._tryExpect('IN');
         const element = this._parseElementRef();
         return { kind: 'action', action: 'select', element, value, by, loc } as SelectAction & { kind: 'action' };
@@ -334,9 +334,9 @@ export class Parser {
         // check $var [not] equals/matches "..."
         if (this._at('VARIABLE')) {
             const variable = this._advance().value;
-            const negated  = this._at('NOT') ? (this._advance(), true) : false;
+            const negated = this._at('NOT') ? (this._advance(), true) : false;
             const op = this._at('EQUALS') ? (this._advance(), 'equals' as const)
-                                          : (this._expect('MATCHES'), 'matches' as const);
+                : (this._expect('MATCHES'), 'matches' as const);
             const value = this._expectString('"expected value"');
             return { kind: 'assert-variable', variable, op, value, negated, loc } satisfies AssertVariableStep;
         }
@@ -400,14 +400,14 @@ export class Parser {
             }
             if (this._at('PROP')) {
                 this._advance();
-                const name  = this._expectString('"prop name"');
+                const name = this._expectString('"prop name"');
                 this._expect('EQUALS');
                 const value = this._expectString('"prop value"');
                 return { op: 'has-prop', name, value };
             }
             if (this._at('ARIA')) {
                 this._advance();
-                const name  = this._expectString('"aria attribute name"');
+                const name = this._expectString('"aria attribute name"');
                 const value = this._expectString('"expected value"');
                 return { op: 'has-aria', name, value };
             }
@@ -527,8 +527,8 @@ export class Parser {
         // HTTP method — comes through as IDENT (GET, POST, PUT, PATCH, DELETE)
         if (!this._at('IDENT')) throw new ParseError('Expected HTTP method (GET, POST, PUT, …)', loc);
         const method = this._advance().value.toUpperCase();
-        const url    = this._expectString('"url"');
-        let status   = 200;
+        const url = this._expectString('"url"');
+        let status = 200;
         let body: string | undefined;
         // optional modifiers: "with status N" and/or "with delay N ms" in any order
         let delayMs: number | undefined;
@@ -564,9 +564,9 @@ export class Parser {
     private _parseAssertRequestStep(loc: Loc): Step {
         this._expect('REQUEST');
         // "METHOD url" as a single string, e.g. "GET /api/users"
-        const raw    = this._expectString('"METHOD url"');
+        const raw = this._expectString('"METHOD url"');
         const [method, ...rest] = raw.trim().split(/\s+/);
-        const url    = rest.join(' ');
+        const url = rest.join(' ');
         if (!method || !url) throw new ParseError('Expected "METHOD url" e.g. "GET /api/users"', loc);
 
         let assertion: RequestAssertionKind;
@@ -634,7 +634,7 @@ export class Parser {
     private _parseFillStep(): Step {
         const loc = this._loc();
         this._expect('FILL');
-        const value   = this._expectString('"text to fill"');
+        const value = this._expectString('"text to fill"');
         this._expect('INTO');
         const element = this._parseElementRef();
         return { kind: 'action', action: 'fill', element, value, loc } as FillAction & { kind: 'action' };

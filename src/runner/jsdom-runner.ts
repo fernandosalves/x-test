@@ -1,23 +1,23 @@
 /**
- * Miura — JSDOM Runner
+ * xtest — JSDOM Runner
  *
  * Executes test steps against a JSDOM environment. No browser process required.
  * Fast and deterministic — ideal for unit-testing components in CI.
  */
 
 import { JSDOM } from 'jsdom';
-import type { MiuraRunner, } from './runner.js';
+import type { xtestRunner, } from './runner.js';
 import type { SpyCall } from '../parser/ast.js';
 
-export class JSDOMRunner implements MiuraRunner {
-    private _dom:        JSDOM | null = null;
-    private _document:   Document | null = null;
-    private _window:     (Window & typeof globalThis) | null = null;
-    private _timeout:    number;
+export class JSDOMRunner implements xtestRunner {
+    private _dom: JSDOM | null = null;
+    private _document: Document | null = null;
+    private _window: (Window & typeof globalThis) | null = null;
+    private _timeout: number;
     private _scopeStack: Element[] = [];
-    private _spyRegistry:    Map<string, SpyCall[]>          = new Map();
-    private _mockRegistry:   Map<string, { status: number; body: string | undefined; delayMs?: number }> = new Map();
-    private _requestLog:     Map<string, { method: string; url: string; body: string }[]>       = new Map();
+    private _spyRegistry: Map<string, SpyCall[]> = new Map();
+    private _mockRegistry: Map<string, { status: number; body: string | undefined; delayMs?: number }> = new Map();
+    private _requestLog: Map<string, { method: string; url: string; body: string }[]> = new Map();
 
     constructor(opts: { timeout?: number } = {}) {
         this._timeout = opts.timeout ?? 5000;
@@ -27,10 +27,10 @@ export class JSDOMRunner implements MiuraRunner {
         if (!this._window) return;
         const self = this;
         (this._window as any).fetch = async (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
-            const url    = typeof input === 'string' ? input : input instanceof URL ? input.href : (input as Request).url;
+            const url = typeof input === 'string' ? input : input instanceof URL ? input.href : (input as Request).url;
             const method = ((init?.method ?? (input instanceof Request ? input.method : 'GET'))).toUpperCase();
-            const body   = typeof init?.body === 'string' ? init.body : '';
-            const key    = `${method} ${url}`;
+            const body = typeof init?.body === 'string' ? init.body : '';
+            const key = `${method} ${url}`;
 
             // Record the call
             const log = self._requestLog.get(key) ?? [];
@@ -44,25 +44,25 @@ export class JSDOMRunner implements MiuraRunner {
                     await new Promise(r => setTimeout(r, mock.delayMs));
                 }
                 return new Response(mock.body ?? '', {
-                    status:  mock.status,
+                    status: mock.status,
                     headers: { 'Content-Type': 'application/json' },
                 }) as unknown as globalThis.Response;
             }
-            throw new Error(`[miura] No mock registered for ${key}. Register with: mock ${method} "${url}" returning "..."`);
+            throw new Error(`[xtest] No mock registered for ${key}. Register with: mock ${method} "${url}" returning "..."`);
         };
     }
 
     async mount(html: string): Promise<void> {
         this._dom = new JSDOM(html, {
-            runScripts:          'dangerously',
-            resources:           'usable',
-            pretendToBeVisual:   true,
-            url:                 'http://localhost',
+            runScripts: 'dangerously',
+            resources: 'usable',
+            pretendToBeVisual: true,
+            url: 'http://localhost',
         });
         this._document = this._dom.window.document;
         this._document.write(html);
         this._document.close();
-        this._window   = this._dom.window as unknown as Window & typeof globalThis;
+        this._window = this._dom.window as unknown as Window & typeof globalThis;
         this._setupFetchInterceptor();
     }
 
@@ -85,23 +85,23 @@ export class JSDOMRunner implements MiuraRunner {
         const el = this._find(selector) as HTMLInputElement;
         el.focus?.();
         el.value = text;
-        el.dispatchEvent(new this._window!.Event('input',  { bubbles: true }));
+        el.dispatchEvent(new this._window!.Event('input', { bubbles: true }));
         el.dispatchEvent(new this._window!.Event('change', { bubbles: true }));
     }
 
     async clear(selector: string): Promise<void> {
         const el = this._find(selector) as HTMLInputElement;
         el.value = '';
-        el.dispatchEvent(new this._window!.Event('input',  { bubbles: true }));
+        el.dispatchEvent(new this._window!.Event('input', { bubbles: true }));
         el.dispatchEvent(new this._window!.Event('change', { bubbles: true }));
     }
 
     async select(selector: string, option: string, by: 'label' | 'value' = 'label'): Promise<void> {
-        const el  = this._find(selector) as HTMLSelectElement;
+        const el = this._find(selector) as HTMLSelectElement;
         const opt = Array.from(el.options).find(o =>
             by === 'value' ? o.value === option : o.textContent?.trim() === option
         );
-        if (!opt) throw new Error(`[miura] Option ${by}="${option}" not found in ${selector}`);
+        if (!opt) throw new Error(`[xtest] Option ${by}="${option}" not found in ${selector}`);
         el.value = opt.value;
         el.dispatchEvent(new (this._window!.Event)('change', { bubbles: true }));
     }
@@ -135,7 +135,7 @@ export class JSDOMRunner implements MiuraRunner {
         if (!active) return;
         const ev = new this._window!.KeyboardEvent('keydown', {
             key,
-            bubbles:    true,
+            bubbles: true,
             cancelable: true,
         });
         active.dispatchEvent(ev);
@@ -223,7 +223,7 @@ export class JSDOMRunner implements MiuraRunner {
         const el = this._find(selector) as HTMLInputElement;
         el.value = '';
         el.value = value;
-        el.dispatchEvent(new (this._window!.Event)('input',  { bubbles: true }));
+        el.dispatchEvent(new (this._window!.Event)('input', { bubbles: true }));
         el.dispatchEvent(new (this._window!.Event)('change', { bubbles: true }));
     }
 
@@ -272,13 +272,13 @@ export class JSDOMRunner implements MiuraRunner {
     }
 
     async awaitFunction(name: string, timeoutMs: number): Promise<void> {
-        if (!this._window) throw new Error(`[miura] No window — call mount() first`);
+        if (!this._window) throw new Error(`[xtest] No window — call mount() first`);
         const fn = (this._window as any)[name];
-        if (typeof fn !== 'function') throw new Error(`[miura] window.${name} is not a function`);
+        if (typeof fn !== 'function') throw new Error(`[xtest] window.${name} is not a function`);
         await Promise.race([
             Promise.resolve(fn()),
             new Promise<never>((_, reject) =>
-                setTimeout(() => reject(new Error(`[miura] Timeout waiting for function "${name}" (${timeoutMs}ms)`)), timeoutMs)
+                setTimeout(() => reject(new Error(`[xtest] Timeout waiting for function "${name}" (${timeoutMs}ms)`)), timeoutMs)
             ),
         ]);
     }
@@ -288,7 +288,7 @@ export class JSDOMRunner implements MiuraRunner {
     }
 
     async getAccessibleName(selector: string): Promise<string> {
-        const el  = this._find(selector) as HTMLElement;
+        const el = this._find(selector) as HTMLElement;
         const doc = this._document!;
         const ariaLabel = el.getAttribute('aria-label');
         if (ariaLabel) return ariaLabel.trim();
@@ -311,12 +311,12 @@ export class JSDOMRunner implements MiuraRunner {
         const doc = this._document;
         if (!doc) return [];
         const context = selector ? (doc.querySelector(selector) ?? doc.documentElement) : doc.documentElement;
-        const result  = await axe.run(context as Element);
+        const result = await axe.run(context as Element);
         return result.violations.map(v => ({
-            id:          v.id,
+            id: v.id,
             description: v.description,
-            impact:      v.impact ?? null,
-            nodes:       v.nodes.map(n => n.html),
+            impact: v.impact ?? null,
+            nodes: v.nodes.map(n => n.html),
         }));
     }
 
@@ -341,15 +341,15 @@ export class JSDOMRunner implements MiuraRunner {
     async teardown(): Promise<void> {
         this._scopeStack = [];
         this._dom?.window.close();
-        this._dom      = null;
+        this._dom = null;
         this._document = null;
-        this._window   = null;
+        this._window = null;
     }
 
     // ── Private helpers ────────────────────────────────────────────────────────
 
     private _find(selector: string): Element {
-        if (!this._document) throw new Error('[miura] Runner not mounted — call mount() first');
+        if (!this._document) throw new Error('[xtest] Runner not mounted — call mount() first');
 
         // Root is the active scope element (from within block) or the document
         const root: Element | Document =
@@ -362,7 +362,7 @@ export class JSDOMRunner implements MiuraRunner {
             const el = root.querySelector(sel);
             if (el) return el;
         }
-        throw new Error(`[miura] Element not found: "${selector}"${this._scopeStack.length > 0 ? ` within scope` : ''}`);
+        throw new Error(`[xtest] Element not found: "${selector}"${this._scopeStack.length > 0 ? ` within scope` : ''}`);
     }
 
     private _tick(ms: number): Promise<void> {

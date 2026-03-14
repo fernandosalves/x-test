@@ -1,5 +1,5 @@
 /**
- * Miura — Runner interface + execution engine
+ * xtest — Runner interface + execution engine
  *
  * The Runner interface is implemented by each environment adapter (JSDOM, Playwright).
  * The Executor ties together the Parser, Resolver, and Runner to run a full suite.
@@ -11,7 +11,7 @@ import { Resolver, type ResolutionResult } from '../resolver/resolver.js';
 
 // ── Runner interface ────────────────────────────────────────────────────────────
 
-export interface MiuraRunner {
+export interface xtestRunner {
     /** Mount HTML into the test environment. */
     mount(html: string): Promise<void>;
     /** Navigate to a URL. */
@@ -103,55 +103,55 @@ export interface MiuraRunner {
 // ── Test result types ────────────────────────────────────────────────────────────
 
 export interface StepResult {
-    step:     string;
-    passed:   boolean;
-    error?:   string;
+    step: string;
+    passed: boolean;
+    error?: string;
     duration: number;
     warning?: string;
 }
 
 export interface ScenarioResult {
     description: string;
-    passed:      boolean;
-    skipped:     boolean;
-    focused:     boolean;
-    steps:       StepResult[];
-    duration:    number;
+    passed: boolean;
+    skipped: boolean;
+    focused: boolean;
+    steps: StepResult[];
+    duration: number;
 }
 
 export interface SuiteResult {
-    name:      string;
-    passed:    boolean;
+    name: string;
+    passed: boolean;
     scenarios: ScenarioResult[];
-    duration:  number;
+    duration: number;
 }
 
 export interface RunResult {
-    passed:       boolean;
-    suites:       SuiteResult[];
-    total:        number;
-    totalPass:    number;
-    totalFail:    number;
+    passed: boolean;
+    suites: SuiteResult[];
+    total: number;
+    totalPass: number;
+    totalFail: number;
     totalSkipped: number;
-    duration:     number;
+    duration: number;
 }
 
 // ── Executor ────────────────────────────────────────────────────────────────────
 
 export class Executor {
-    private _runner:   MiuraRunner;
+    private _runner: xtestRunner;
     private _resolver: Resolver;
     private _fixtures: Record<string, string>;
-    private _vars:     Map<string, string> = new Map();
+    private _vars: Map<string, string> = new Map();
 
-    constructor(runner: MiuraRunner, manifest: SurfaceManifest, opts: { fixtures?: Record<string, string> } = {}) {
-        this._runner   = runner;
+    constructor(runner: xtestRunner, manifest: SurfaceManifest, opts: { fixtures?: Record<string, string> } = {}) {
+        this._runner = runner;
         this._resolver = new Resolver(manifest);
         this._fixtures = opts.fixtures ?? {};
     }
 
     async runFile(file: XTestFile, html?: string): Promise<RunResult> {
-        const start   = Date.now();
+        const start = Date.now();
         const suites: SuiteResult[] = [];
 
         // Determine if any suite/scenario is focused — only run focused ones
@@ -165,19 +165,19 @@ export class Executor {
         }
 
         const allScenarios = suites.flatMap(s => s.scenarios);
-        const total        = allScenarios.filter(s => !s.skipped).length;
-        const pass         = allScenarios.filter(s => s.passed  && !s.skipped).length;
-        const fail         = allScenarios.filter(s => !s.passed && !s.skipped).length;
-        const skipped      = allScenarios.filter(s => s.skipped).length;
+        const total = allScenarios.filter(s => !s.skipped).length;
+        const pass = allScenarios.filter(s => s.passed && !s.skipped).length;
+        const fail = allScenarios.filter(s => !s.passed && !s.skipped).length;
+        const skipped = allScenarios.filter(s => s.skipped).length;
 
         return {
-            passed:       fail === 0,
+            passed: fail === 0,
             suites,
             total,
-            totalPass:    pass,
-            totalFail:    fail,
+            totalPass: pass,
+            totalFail: fail,
             totalSkipped: skipped,
-            duration:     Date.now() - start,
+            duration: Date.now() - start,
         };
     }
 
@@ -201,11 +201,11 @@ export class Executor {
             if (shouldSkip) {
                 scenarios.push({
                     description: scenario.description,
-                    passed:      true,
-                    skipped:     true,
-                    focused:     scenario.focused,
-                    steps:       [],
-                    duration:    0,
+                    passed: true,
+                    skipped: true,
+                    focused: scenario.focused,
+                    steps: [],
+                    duration: 0,
                 });
                 continue;
             }
@@ -239,10 +239,10 @@ export class Executor {
         }
 
         return {
-            name:      suite.name,
-            passed:    scenarios.filter(s => !s.skipped).every(s => s.passed),
+            name: suite.name,
+            passed: scenarios.filter(s => !s.skipped).every(s => s.passed),
             scenarios,
-            duration:  Date.now() - start,
+            duration: Date.now() - start,
         };
     }
 
@@ -268,25 +268,25 @@ export class Executor {
 
         return {
             description: scenario.description,
-            passed:      steps.every(s => s.passed),
-            skipped:     false,
-            focused:     scenario.focused,
+            passed: steps.every(s => s.passed),
+            skipped: false,
+            focused: scenario.focused,
             steps,
-            duration:    Date.now() - start,
+            duration: Date.now() - start,
         };
     }
 
     private async _execStepSafe(step: Step): Promise<StepResult> {
         const label = this._stepLabel(step);
-        const t0    = Date.now();
+        const t0 = Date.now();
         try {
             await this._execStep(step);
             return { step: label, passed: true, duration: Date.now() - t0 };
         } catch (err) {
             return {
-                step:     label,
-                passed:   false,
-                error:    err instanceof Error ? err.message : String(err),
+                step: label,
+                passed: false,
+                error: err instanceof Error ? err.message : String(err),
                 duration: Date.now() - t0,
             };
         }
@@ -307,20 +307,20 @@ export class Executor {
     private async _execStep(step: Step): Promise<void> {
         switch (step.kind) {
             case 'action': return this._execAction(step);
-            case 'assert-element':  return this._execAssertElement(step);
+            case 'assert-element': return this._execAssertElement(step);
             case 'assert-variable': return this._execAssertVariable(step);
-            case 'store':           return this._execStore(step);
-            case 'within':          return this._execWithin(step);
-            case 'load-component':  return this._execLoadComponent(step as LoadComponentStep);
-            case 'apply-fixture':   return this._execApplyFixture(step as ApplyFixtureStep);
-            case 'register-spy':    return this._execRegisterSpy(step as RegisterSpyStep);
-            case 'reset-spy':       return this._runner.resetSpy((step as ResetSpyStep).name);
-            case 'assert-spy':      return this._execAssertSpy(step as AssertSpyStep);
+            case 'store': return this._execStore(step);
+            case 'within': return this._execWithin(step);
+            case 'load-component': return this._execLoadComponent(step as LoadComponentStep);
+            case 'apply-fixture': return this._execApplyFixture(step as ApplyFixtureStep);
+            case 'register-spy': return this._execRegisterSpy(step as RegisterSpyStep);
+            case 'reset-spy': return this._runner.resetSpy((step as ResetSpyStep).name);
+            case 'assert-spy': return this._execAssertSpy(step as AssertSpyStep);
             case 'take-screenshot': return this._runner.screenshot((step as TakeScreenshotStep).name);
-            case 'check-a11y':      return this._execCheckA11y(step as CheckA11yStep);
-            case 'mock-request':    { const m = step as MockRequestStep; return this._runner.mockRequest(m.method, m.url, m.status, m.body, m.delayMs); }
-            case 'assert-request':  return this._execAssertRequest(step as AssertRequestStep);
-            case 'await-function':  return this._runner.awaitFunction((step as AwaitFunctionStep).name, (step as AwaitFunctionStep).timeoutMs);
+            case 'check-a11y': return this._execCheckA11y(step as CheckA11yStep);
+            case 'mock-request': { const m = step as MockRequestStep; return this._runner.mockRequest(m.method, m.url, m.status, m.body, m.delayMs); }
+            case 'assert-request': return this._execAssertRequest(step as AssertRequestStep);
+            case 'await-function': return this._runner.awaitFunction((step as AwaitFunctionStep).name, (step as AwaitFunctionStep).timeoutMs);
         }
     }
 
@@ -328,22 +328,22 @@ export class Executor {
         const r = this._resolve('element' in step ? (step as any).element : null);
 
         switch (step.action) {
-            case 'type':       return this._runner.type(r!.selector, (step as any).value);
-            case 'click':      return this._runner.click(r!.selector);
+            case 'type': return this._runner.type(r!.selector, (step as any).value);
+            case 'click': return this._runner.click(r!.selector);
             case 'double-click': return this._runner.click(r!.selector, { double: true });
-            case 'right-click':  return this._runner.click(r!.selector, { right: true });
-            case 'select':     return this._runner.select(r!.selector, (step as any).value, (step as any).by);
-            case 'clear':      return this._runner.clear(r!.selector);
-            case 'hover':      return this._runner.hover(r!.selector);
-            case 'scroll-to':  return this._runner.scrollTo(r!.selector);
-            case 'wait-for':   return this._runner.waitFor(r!.selector, (step as any).timeoutMs);
-            case 'wait-ms':    return this._runner.waitMs((step as any).ms);
-            case 'navigate':   return this._runner.navigate((step as any).url);
-            case 'reload':     return this._runner.reload();
-            case 'press':      return this._runner.press((step as any).key);
-            case 'focus':      return this._runner.focus(r!.selector);
-            case 'blur':       return this._runner.blur(r!.selector);
-            case 'fill':       return this._runner.fill(r!.selector, (step as any).value);
+            case 'right-click': return this._runner.click(r!.selector, { right: true });
+            case 'select': return this._runner.select(r!.selector, (step as any).value, (step as any).by);
+            case 'clear': return this._runner.clear(r!.selector);
+            case 'hover': return this._runner.hover(r!.selector);
+            case 'scroll-to': return this._runner.scrollTo(r!.selector);
+            case 'wait-for': return this._runner.waitFor(r!.selector, (step as any).timeoutMs);
+            case 'wait-ms': return this._runner.waitMs((step as any).ms);
+            case 'navigate': return this._runner.navigate((step as any).url);
+            case 'reload': return this._runner.reload();
+            case 'press': return this._runner.press((step as any).key);
+            case 'focus': return this._runner.focus(r!.selector);
+            case 'blur': return this._runner.blur(r!.selector);
+            case 'fill': return this._runner.fill(r!.selector, (step as any).value);
         }
     }
 
@@ -359,7 +359,7 @@ export class Executor {
         if (html) {
             await this._runner.mount(html);
         } else {
-            throw new Error(`[miura] Fixture "${step.name}" not found. Register it in Executor options: new Executor(runner, manifest, { fixtures: { "${step.name}": html } })`);
+            throw new Error(`[xtest] Fixture "${step.name}" not found. Register it in Executor options: new Executor(runner, manifest, { fixtures: { "${step.name}": html } })`);
         }
     }
 
@@ -369,7 +369,7 @@ export class Executor {
 
     private async _execAssertSpy(step: AssertSpyStep): Promise<void> {
         const calls = await this._runner.getSpyCalls(step.spyName);
-        const a     = step.assertion;
+        const a = step.assertion;
 
         const fail = (msg: string) => {
             throw new Error(`Assertion failed: check spy "${step.spyName}" ${msg}`);
@@ -423,22 +423,22 @@ export class Executor {
 
         switch (a.op) {
             case 'is-visibility': {
-                const visible  = await this._runner.isVisible(r.selector);
-                const present  = await this._runner.isPresent(r.selector);
+                const visible = await this._runner.isVisible(r.selector);
+                const present = await this._runner.isPresent(r.selector);
                 const actualState = !present ? 'absent' : visible ? 'visible' : 'hidden';
-                if (a.state === 'visible')  await check(visible,  'visible',  actualState);
-                if (a.state === 'hidden')   await check(!visible && present, 'hidden',  actualState);
-                if (a.state === 'absent')   await check(!present, 'absent',  actualState);
-                if (a.state === 'present')  await check(present,  'present', actualState);
+                if (a.state === 'visible') await check(visible, 'visible', actualState);
+                if (a.state === 'hidden') await check(!visible && present, 'hidden', actualState);
+                if (a.state === 'absent') await check(!present, 'absent', actualState);
+                if (a.state === 'present') await check(present, 'present', actualState);
                 break;
             }
             case 'is-input-state':
-                if (a.state === 'enabled')   await check(await this._runner.isEnabled(r.selector),  'enabled');
-                if (a.state === 'disabled')  await check(!await this._runner.isEnabled(r.selector), 'disabled');
-                if (a.state === 'checked')   await check(await this._runner.isChecked(r.selector),  'checked');
+                if (a.state === 'enabled') await check(await this._runner.isEnabled(r.selector), 'enabled');
+                if (a.state === 'disabled') await check(!await this._runner.isEnabled(r.selector), 'disabled');
+                if (a.state === 'checked') await check(await this._runner.isChecked(r.selector), 'checked');
                 if (a.state === 'unchecked') await check(!await this._runner.isChecked(r.selector), 'unchecked');
-                if (a.state === 'focused')   await check(await this._runner.hasFocus(r.selector),    'focused');
-                if (a.state === 'readonly')  await check(await this._runner.isReadOnly(r.selector),  'readonly');
+                if (a.state === 'focused') await check(await this._runner.hasFocus(r.selector), 'focused');
+                if (a.state === 'readonly') await check(await this._runner.isReadOnly(r.selector), 'readonly');
                 if (a.state === 'focusable') await check(await this._runner.isFocusable(r.selector), 'focusable');
                 break;
             case 'has-prop': {
@@ -449,7 +449,7 @@ export class Executor {
             case 'has-attr': {
                 const attrVal = await this._runner.getAttr(r.selector, a.name);
                 if (a.state === 'present') { await check(attrVal !== null, `attr "${a.name}" present`, attrVal === null ? 'absent' : 'present'); break; }
-                if (a.state === 'absent')  { await check(attrVal === null, `attr "${a.name}" absent`,  attrVal === null ? 'absent' : `"${attrVal}"`); break; }
+                if (a.state === 'absent') { await check(attrVal === null, `attr "${a.name}" absent`, attrVal === null ? 'absent' : `"${attrVal}"`); break; }
                 await check(attrVal === a.value, `attr "${a.name}" = "${a.value}"`, attrVal !== null ? `"${attrVal}"` : 'absent');
                 break;
             }
@@ -512,29 +512,29 @@ export class Executor {
                 break;
             }
             default:
-                throw new Error(`[miura] Unhandled assertion op: ${(a as any).op}`);
+                throw new Error(`[xtest] Unhandled assertion op: ${(a as any).op}`);
         }
     }
 
     private async _execAssertRequest(step: AssertRequestStep): Promise<void> {
         const calls = await this._runner.getRequestCalls(step.method, step.url);
-        const a     = step.assertion;
+        const a = step.assertion;
         const label = `${step.method} ${step.url}`;
         switch (a.op) {
             case 'was-made':
-                if (calls.length === 0) throw new Error(`[miura] Expected request ${label} to have been made, but it was never called`);
+                if (calls.length === 0) throw new Error(`[xtest] Expected request ${label} to have been made, but it was never called`);
                 break;
             case 'was-not-made':
-                if (calls.length > 0) throw new Error(`[miura] Expected request ${label} NOT to have been made, but it was called ${calls.length} time(s)`);
+                if (calls.length > 0) throw new Error(`[xtest] Expected request ${label} NOT to have been made, but it was called ${calls.length} time(s)`);
                 break;
             case 'was-made-times':
-                if (calls.length !== a.count) throw new Error(`[miura] Expected request ${label} to be called ${a.count} time(s), but was called ${calls.length} time(s)`);
+                if (calls.length !== a.count) throw new Error(`[xtest] Expected request ${label} to be called ${a.count} time(s), but was called ${calls.length} time(s)`);
                 break;
             case 'was-made-with': {
                 const match = calls.some(c => c.body.includes(a.body) || c.body === a.body);
                 if (!match) {
                     const bodies = calls.map(c => `  "${c.body}"`).join('\n') || '  (none)';
-                    throw new Error(`[miura] Expected request ${label} to be called with:\n  "${a.body}"\nActual bodies:\n${bodies}`);
+                    throw new Error(`[xtest] Expected request ${label} to be called with:\n  "${a.body}"\nActual bodies:\n${bodies}`);
                 }
                 break;
             }
@@ -547,13 +547,13 @@ export class Executor {
             const details = violations.map(v =>
                 `  • [${v.impact ?? 'unknown'}] ${v.id}: ${v.description}\n    Nodes: ${v.nodes.join(', ')}`
             ).join('\n');
-            throw new Error(`[miura] Accessibility violations found:\n${details}`);
+            throw new Error(`[xtest] Accessibility violations found:\n${details}`);
         }
     }
 
     private async _execAssertVariable(step: any): Promise<void> {
         const stored = this._vars.get(step.variable) ?? '';
-        const match  = step.op === 'equals'
+        const match = step.op === 'equals'
             ? stored === step.value
             : new RegExp(step.value).test(stored);
         const result = step.negated ? !match : match;
@@ -590,20 +590,20 @@ export class Executor {
                 const detail = (() => {
                     const a = s.assertion;
                     if (a.op === 'is-visibility' || a.op === 'is-input-state') return `is ${a.state}`;
-                    if (a.op === 'contains')   return `contains "${a.value}"`;
-                    if (a.op === 'has-value')  return `has value "${a.value}"`;
-                    if (a.op === 'has-text')   return `has text "${a.value}"`;
-                    if (a.op === 'has-focus')  return 'has focus';
-                    if (a.op === 'has-class')  return `has class "${a.value}"`;
-                    if (a.op === 'matches')    return `matches /${a.pattern}/`;
-                    if (a.op === 'has-prop')   return `has prop "${a.name}" equals "${a.value}"`;
-                    if (a.op === 'has-attr')   return a.value ? `has attr "${a.name}" equals "${a.value}"` : `has attr "${a.name}" is ${a.state}`;
-                    if (a.op === 'has-count')  return `has count ${a.count}`;
-                    if (a.op === 'is-empty')   return 'is empty';
-                    if (a.op === 'has-aria')            return `has aria-${a.name} "${a.value}"`;
-                    if (a.op === 'has-role')            return `has role "${a.role}"`;
+                    if (a.op === 'contains') return `contains "${a.value}"`;
+                    if (a.op === 'has-value') return `has value "${a.value}"`;
+                    if (a.op === 'has-text') return `has text "${a.value}"`;
+                    if (a.op === 'has-focus') return 'has focus';
+                    if (a.op === 'has-class') return `has class "${a.value}"`;
+                    if (a.op === 'matches') return `matches /${a.pattern}/`;
+                    if (a.op === 'has-prop') return `has prop "${a.name}" equals "${a.value}"`;
+                    if (a.op === 'has-attr') return a.value ? `has attr "${a.name}" equals "${a.value}"` : `has attr "${a.name}" is ${a.state}`;
+                    if (a.op === 'has-count') return `has count ${a.count}`;
+                    if (a.op === 'is-empty') return 'is empty';
+                    if (a.op === 'has-aria') return `has aria-${a.name} "${a.value}"`;
+                    if (a.op === 'has-role') return `has role "${a.role}"`;
                     if (a.op === 'has-accessible-name') return `has accessible name "${a.value}"`;
-                    if (a.op === 'has-alt')             return `has alt "${a.value}"`;
+                    if (a.op === 'has-alt') return `has alt "${a.value}"`;
                     return op;
                 })();
                 return `check ${s.element.value} ${s.negated ? 'not ' : ''}${detail}`;
@@ -634,18 +634,18 @@ export class Executor {
                 const ra = s.assertion;
                 const rdetail = ra.op === 'was-made' ? 'was made'
                     : ra.op === 'was-not-made' ? 'was not made'
-                    : ra.op === 'was-made-times' ? `was called ${ra.count} time(s)`
-                    : `was called with "${ra.body}"`;
+                        : ra.op === 'was-made-times' ? `was called ${ra.count} time(s)`
+                            : `was called with "${ra.body}"`;
                 return `check request "${s.method} ${s.url}" ${rdetail}`;
             }
             case 'assert-spy': {
                 const a = s.assertion;
                 const detail = (() => {
-                    if (a.op === 'was-called')       return 'was called';
-                    if (a.op === 'was-not-called')   return 'was not called';
+                    if (a.op === 'was-called') return 'was called';
+                    if (a.op === 'was-not-called') return 'was not called';
                     if (a.op === 'was-called-times') return `was called ${a.count} time(s)`;
-                    if (a.op === 'was-called-with')  return `was called with ${JSON.stringify(a.args)}`;
-                    if (a.op === 'last-returned')    return `last returned "${a.value}"`;
+                    if (a.op === 'was-called-with') return `was called with ${JSON.stringify(a.args)}`;
+                    if (a.op === 'last-returned') return `last returned "${a.value}"`;
                     return a.op;
                 })();
                 return `check spy "${s.spyName}" ${detail}`;

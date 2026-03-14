@@ -1,5 +1,5 @@
 /**
- * Miura — xtest() directive
+ * xtest — xtest() directive
  *
  * Framework-agnostic element annotator. In dev, attaches data-xtest="<name>"
  * to the element. In production builds, is a complete no-op with zero footprint.
@@ -21,7 +21,7 @@
 
 const IS_DEV = typeof process !== 'undefined'
     ? process.env['NODE_ENV'] !== 'production'
-    : typeof globalThis !== 'undefined' && (globalThis as any).__MIURA_DEV__ !== false;
+    : typeof globalThis !== 'undefined' && (globalThis as any).__xtest_DEV__ !== false;
 
 // ── Plain object form (React / Vue / vanilla spread) ───────────────────────────
 
@@ -82,7 +82,7 @@ export function annotate(el: Element, name: string): void {
 }
 
 /**
- * Remove a Miura annotation from an element (e.g. on cleanup).
+ * Remove a xtest annotation from an element (e.g. on cleanup).
  */
 export function unannotate(el: Element): void {
     el.removeAttribute('data-xtest');

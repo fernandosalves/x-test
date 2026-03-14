@@ -1,8 +1,8 @@
-# Miura — Architecture
+# xtest — Architecture
 
 ## Overview
 
-Miura is a plain-language component testing framework built around a single core idea: **the component owns the selector, not the test**. This document describes the full system design.
+xtest is a plain-language component testing framework built around a single core idea: **the component owns the selector, not the test**. This document describes the full system design.
 
 ---
 
@@ -172,7 +172,7 @@ Executes the resolved steps against a live DOM. Two adapters:
 
 **Runner interface:**
 ```ts
-interface MiuraRunner {
+interface xtestRunner {
     mount(html: string): Promise<void>;
     find(selector: string): Promise<ElementHandle>;
     click(selector: string): Promise<void>;
@@ -244,7 +244,7 @@ Short form: the manifest is a JSDoc block co-located with the component class/fu
 ## File Layout
 
 ```
-miura-testing/
+xtest-testing/
 ├── README.md
 ├── package.json
 ├── tsconfig.json
@@ -267,7 +267,7 @@ miura-testing/
 │   ├── directive/
 │   │   └── xtest.ts         ← xtest() element annotator
 │   ├── runner/
-│   │   ├── runner.ts        ← MiuraRunner interface
+│   │   ├── runner.ts        ← xtestRunner interface
 │   │   ├── jsdom-runner.ts  ← JSDOM adapter
 │   │   └── playwright-runner.ts
 │   ├── reporter/
@@ -275,7 +275,7 @@ miura-testing/
 │   │   ├── html.ts
 │   │   └── pretty.ts
 │   └── cli/
-│       └── index.ts         ← miura run CLI
+│       └── index.ts         ← xtest run CLI
 ├── examples/
 │   ├── login-form/
 │   │   ├── login-form.ts
@@ -300,4 +300,4 @@ Determinism matters in a test runner. Fuzzy matching via edit distance is fast, 
 Co-location. The manifest should be updated when the component changes. A separate `.manifest.json` file will drift. A JSDoc block in the component file drifts with it naturally.
 
 **Why not just use Playwright's `getByRole` / `getByLabel`?**
-Those are good — they push Playwright in the right direction. But they require the test author to know which ARIA role/label the element uses. Miura inverts this: the component author makes that decision once in the manifest.
+Those are good — they push Playwright in the right direction. But they require the test author to know which ARIA role/label the element uses. xtest inverts this: the component author makes that decision once in the manifest.

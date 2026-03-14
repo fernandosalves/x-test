@@ -1,5 +1,5 @@
 /**
- * Miura — Resolver
+ * xtest — Resolver
  *
  * Maps an ElementRef from the AST to a concrete CSS selector using
  * the SurfaceManifest. Implements a priority-ordered resolution chain
@@ -16,11 +16,11 @@ import {
 // ── Resolution result ───────────────────────────────────────────────────────────
 
 export interface ResolutionResult {
-    selector:   string;
-    element:    SurfaceElement | null;
-    strategy:   string;
+    selector: string;
+    element: SurfaceElement | null;
+    strategy: string;
     confidence: 'exact' | 'alias' | 'fuzzy' | 'inferred' | 'fallback';
-    warning?:   string;
+    warning?: string;
     needsText?: string;
 }
 
@@ -30,7 +30,7 @@ export class ResolutionError extends Error {
         public readonly candidates: string[],
     ) {
         super(
-            `[miura] Cannot resolve element "${ref}".\n` +
+            `[xtest] Cannot resolve element "${ref}".\n` +
             (candidates.length
                 ? `  Did you mean: ${candidates.map(c => `"${c}"`).join(', ')}?`
                 : '  No elements declared in the surface manifest.'),
@@ -53,9 +53,9 @@ export class Resolver {
         if (ref.kind === 'variable') {
             // Variables are resolved at runtime — return a sentinel
             return {
-                selector:   `[data-miura-var="${ref.value}"]`,
-                element:    null,
-                strategy:   'variable',
+                selector: `[data-xtest-var="${ref.value}"]`,
+                element: null,
+                strategy: 'variable',
                 confidence: 'fallback',
             };
         }
@@ -93,9 +93,9 @@ export class Resolver {
         if (Object.keys(this._manifest.elements).length === 0) {
             const inferred = inferSelector(name);
             return {
-                selector:   inferred.selector,
-                element:    null,
-                strategy:   inferred.strategy,
+                selector: inferred.selector,
+                element: null,
+                strategy: inferred.strategy,
                 confidence: 'inferred',
             };
         }
@@ -124,23 +124,23 @@ export class Resolver {
             : strategyToSelector(el.strategy);
 
         return {
-            selector:   resolved.selector,
-            element:    el,
-            strategy:   resolved.strategy,
+            selector: resolved.selector,
+            element: el,
+            strategy: resolved.strategy,
             confidence,
             ...(resolved.needsText ? { needsText: resolved.needsText } : {}),
         };
     }
 
     private _fuzzyMatch(key: string): { element: SurfaceElement; distance: number } | null {
-        let best:     SurfaceElement | null = null;
+        let best: SurfaceElement | null = null;
         let bestDist: number = 3; // threshold
 
         for (const [aliasKey, el] of this._aliasIndex) {
             const dist = editDistance(key, aliasKey);
             if (dist < bestDist) {
                 bestDist = dist;
-                best     = el;
+                best = el;
             }
         }
 
