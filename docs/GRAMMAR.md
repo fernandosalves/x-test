@@ -43,9 +43,19 @@ GivenStep   ← "component" Ident "is" "loaded"   -- mount component HTML from f
             / "fixture" String "is" "applied"    -- apply a named HTML fixture
             / Step
 
-Step        ← ActionStep / AssertStep / StoreStep / PressStep / NavigateStep / WithinStep
+Step        ← ActionStep / AssertStep / StoreStep / PressStep / NavigateStep / WithinStep / MacroCall
 
-WithinStep  ← "within" ElementRef NEWLINE INDENT Step+ DEDENT
+WithinStep  ← "within" ElementRef ScopeChain? NEWLINE INDENT Step+ DEDENT
+ScopeChain  ← (DotScope / LegacyScope)+
+DotScope    ← "." Ident ScopeModifier?
+LegacyScope ← Ident ScopeModifier?
+ScopeModifier ← ParenQualifier? Filter?
+ParenQualifier ← "(" Number? ")"
+Filter     ← AttrFilter / TextFilter / BracketFilter
+AttrFilter ← "#" Ident "(" FilterValue ")"
+TextFilter ← "@" ("text" / "contains")? "(" String ")"
+BracketFilter ← "[" ("text" / Ident) ("=" / "~=") String "]"
+FilterValue ← String / Number / Ident
 
 ActionStep  ← TypeAction
             / ClickAction
@@ -136,6 +146,7 @@ StoreStep   ← "store" ElementRef "text" "as" Variable
             / "store" ElementRef "value" "as" Variable
 
 Step        ← ActionStep / AssertStep / StoreStep / SpyStep / MockStep / RequestStep / WaitFnStep / PressStep / NavigateStep / WithinStep
+            / MacroCall
 
 PressStep   ← "press" Key
 Key         ← String      -- "Enter", "Tab", "Escape", "ArrowDown" etc.

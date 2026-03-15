@@ -187,6 +187,18 @@ For components you don't control, or third-party HTML, use an explicit selector 
 | `store <element> text as $var` | Capture value |
 | `check $var equals "text"` | Assert captured value |
 
+### DSL Sugar
+
+xtest also includes a few ergonomic shortcuts that layer on top of the core grammar:
+
+| Feature | Example | Notes |
+| --- | --- | --- |
+| **Scope chaining** | `within user-table.row(2).cell(3)` | Dot syntax walks nested scopes without repeating `within` blocks. `()`, `#`, and `@` suffixes can be mixed inline. |
+| **Named filter shortcuts** | `row#id(42)` or `cell@contains("Ada")` | `#attr(value)` filters by attribute equality, `@text("foo")` matches text exactly, and `@contains("foo")` does substring checks. |
+| **Step macros** | `macro fillLogin($email, $password)` … `fillLogin "ada" "hunter2"` | Define reusable step sequences with positional parameters. String params are passed as string literals; element params can be used wherever an element ref is expected. |
+
+All sugar is purely syntactic. The parser expands macros and scope chains into the same AST produced by the long-form syntax, so runners/resolvers require no special configuration.
+
 ---
 
 ## Docs
