@@ -552,31 +552,31 @@ export class Parser {
         this._expect('WITHIN');
         const root = this._parseElementRef();
         const scopes: { name: string; qualifier: number; filter?: ScopeFilter }[] = [];
-        while ((this._at('IDENT') || this._peekAt(0)?.type === 'COLON')) {
-            let scopeName: string;
+        while (this._at('DOT') || this._at('IDENT') || this._at('COLON')) {
+            if (this._at('DOT')) {
+                this._advance();
+                const scopeName = this._expectIdent('scope name');
+                const { qualifier, filter } = this._parseScopeModifier({ mode: 'paren' });
+                scopes.push({ name: scopeName, qualifier, ...(filter ? { filter } : {}) });
+                continue;
+            }
+
             if (this._at('IDENT')) {
-                scopeName = this._advance().value;
-            } else if (this._at('COLON')) {
-                if (root.kind !== 'name') throw new ParseError('Unnamed scope qualifier requires a named root element', this._loc());
-                scopeName = root.value;
-            } else {
-                break;
+                const scopeName = this._advance().value;
+                const { qualifier, filter } = this._parseScopeModifier({ mode: 'colon' });
+                scopes.push({ name: scopeName, qualifier, ...(filter ? { filter } : {}) });
+                continue;
             }
 
-            let filter: ScopeFilter | undefined;
-            if (this._at('LBRACKET')) {
-                filter = this._parseScopeFilter();
-            }
-
-            let qualifier = 1;
             if (this._at('COLON')) {
+                if (root.kind !== 'name') throw new ParseError('Unnamed scope qualifier requires a named root element', this._loc());
                 this._advance();
                 if (!this._at('NUMBER')) throw new ParseError('Expected numeric scope qualifier after ":"', this._loc());
-                qualifier = Number(this._advance().value);
+                const qualifier = Number(this._advance().value);
                 if (Number.isNaN(qualifier) || qualifier < 1) throw new ParseError('Scope qualifier must be a positive integer', this._loc());
+                scopes.push({ name: root.value, qualifier });
+                continue;
             }
-
-            scopes.push({ name: scopeName, qualifier, ...(filter ? { filter } : {}) });
         }
         this._skipNewlines();
         this._expect('INDENT');
@@ -613,6 +613,35 @@ export class Parser {
         return target === 'attr'
             ? { target: 'attr', attr: attr!, operator, value }
             : { target: 'text', operator, value };
+    }
+
+    private _parseScopeModifier(opts: { mode: 'colon' | 'paren' }): { qualifier: number; filter?: ScopeFilter } {
+        let filter: ScopeFilter | undefined;
+        if (this._at('LBRACKET')) {
+            filter = this._parseScopeFilter();
+        }
+
+        let qualifier = 1;
+        if (opts.mode === 'paren') {
+            if (this._at('LPAREN')) {
+                this._advance();
+                if (!this._at('RPAREN')) {
+                    if (!this._at('NUMBER')) throw new ParseError('Expected numeric scope qualifier inside "()"', this._loc());
+                    qualifier = Number(this._advance().value);
+                    if (Number.isNaN(qualifier) || qualifier < 1) throw new ParseError('Scope qualifier must be a positive integer', this._loc());
+                }
+                this._expect('RPAREN');
+            }
+        } else {
+            if (this._at('COLON')) {
+                this._advance();
+                if (!this._at('NUMBER')) throw new ParseError('Expected numeric scope qualifier after ":"', this._loc());
+                qualifier = Number(this._advance().value);
+                if (Number.isNaN(qualifier) || qualifier < 1) throw new ParseError('Scope qualifier must be a positive integer', this._loc());
+            }
+        }
+
+        return { qualifier, ...(filter ? { filter } : {}) };
     }
 
     // ── Focus step ────────────────────────────────────────────────────────────
@@ -1004,10 +1033,10 @@ export class Parser {
         return def.steps.map(original => this._cloneWithMacroArgs(original, argMap));
     }
 
-    private _cloneWithMacroArgs<T>(value: T, args: Map<string, MacroCallArg>): T {
+    private _cloneWithMacroArgs(value: any, args: Map<string, MacroCallArg>): any {
         if (value === null || value === undefined) return value;
         if (Array.isArray(value)) {
-            return value.map(item => this._cloneWithMacroArgs(item, args)) as unknown as T;
+            return value.map(item => this._cloneWithMacroArgs(item, args));
         }
         if (typeof value === 'string') {
             const param = decodeMacroStringParam(value);
@@ -1016,7 +1045,7 @@ export class Parser {
             if (!arg || arg.kind !== 'string') {
                 throw new ParseError(`Macro parameter $${param} expected a string argument`, this._loc());
             }
-            return arg.value as unknown as T;
+            return arg.value;
         }
         if (typeof value !== 'object') {
             return value;
