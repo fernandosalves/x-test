@@ -617,7 +617,9 @@ export class Parser {
 
     private _parseScopeModifier(opts: { mode: 'colon' | 'paren' }): { qualifier: number; filter?: ScopeFilter } {
         let filter: ScopeFilter | undefined;
-        if (this._at('LBRACKET')) {
+        if (this._at('HASH') || this._at('AT')) {
+            filter = this._parseScopeShortcutFilter();
+        } else if (this._at('LBRACKET')) {
             filter = this._parseScopeFilter();
         }
 
@@ -642,6 +644,34 @@ export class Parser {
         }
 
         return { qualifier, ...(filter ? { filter } : {}) };
+    }
+
+    private _parseScopeShortcutFilter(): ScopeFilter {
+        if (this._at('HASH')) {
+            this._advance();
+            const attrName = this._expectIdent('attribute name');
+            this._expect('LPAREN');
+            const value = this._parseScopeFilterValue({ allowIdentifiers: true });
+            this._expect('RPAREN');
+            return { target: 'attr', attr: attrName, operator: 'equals', value };
+        }
+        if (this._at('AT')) {
+            this._advance();
+            const label = this._at('IDENT') ? this._advance().value.toLowerCase() : undefined;
+            this -> _expect('LPAREN');
+            const value = this._parseScopeFilterValue({ allowIdentifiers: false });
+            this._expect('RPAREN');
+            const operator: ScopeFilter['operator'] = label === 'contains' ? 'contains' : 'equals';
+            return { target: 'text', operator, value };
+        }
+        throw new ParseError('Expected scope filter shortcut', this._loc());
+    }
+
+    private _parseScopeFilterValue(opts: { allowIdentifiers: boolean }): string {
+        if (this._at('STRING')) return this._advance().value;
+        if (this._at('NUMBER')) return this._advance().value;
+        if (opts.allowIdentifiers && this._at('IDENT')) return this._advance().value;
+        throw new ParseError('Expected filter value', this._loc());
     }
 
     // ── Focus step ────────────────────────────────────────────────────────────
