@@ -111,3 +111,27 @@ describe('Parser', () => {
         expect(ast.file).toBe('test.xtest');
     });
 });
+
+describe('Parser — macros', () => {
+    it('collects macro definitions and expands macro calls', () => {
+        const src = `macro fillLogin($email, $password)\n  type $email into username-input\n  type $password into password-input\n\nsuite Login\n  scenario "macro"\n    fillLogin "ada@example.com" "hunter2"\n`;
+        const ast = parseXTest(src);
+        expect(ast.macros).toBeDefined();
+        expect(ast.macros!.map(m => m.name)).toContain('fillLogin');
+        const steps = ast.suites[0]!.scenarios[0]!.steps as any[];
+        expect(steps).toHaveLength(2);
+        expect(steps[0]!.action).toBe('type');
+        expect(steps[0]!.value).toBe('ada@example.com');
+        expect(steps[1]!.value).toBe('hunter2');
+    });
+
+    it('supports macro parameters used as element references', () => {
+        const src = `macro clickTarget($target)\n  click $target\n\nsuite Login\n  scenario "macro element"\n    clickTarget confirm-button\n`;
+        const ast = parseXTest(src);
+        const step = ast.suites[0]!.scenarios[0]!.steps[0] as any;
+        expect(step.kind).toBe('action');
+        expect(step.action).toBe('click');
+        expect(step.element.kind).toBe('name');
+        expect(step.element.value).toBe('confirm-button');
+    });
+});

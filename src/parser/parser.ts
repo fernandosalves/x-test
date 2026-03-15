@@ -658,7 +658,7 @@ export class Parser {
         if (this._at('AT')) {
             this._advance();
             const label = this._at('IDENT') ? this._advance().value.toLowerCase() : undefined;
-            this -> _expect('LPAREN');
+            this._expect('LPAREN');
             const value = this._parseScopeFilterValue({ allowIdentifiers: false });
             this._expect('RPAREN');
             const operator: ScopeFilter['operator'] = label === 'contains' ? 'contains' : 'equals';

@@ -13,6 +13,41 @@ describe('Parser — within block', () => {
         expect(step.steps[0].action).toBe('click');
     });
 
+    describe('Executor — scope filters', () => {
+        it('applies attr and text filters from shortcuts', async () => {
+            const { Executor } = await import('../runner/runner.js');
+            const { JSDOMRunner } = await import('../runner/jsdom-runner.js');
+
+            const src = `suite S\n  scenario "filters"\n    within user-table.row#id(42).cell@contains("Ada")\n      click cell-button\n`;
+            const ast = parseXTest(src);
+            const runner = new JSDOMRunner();
+            const executor = new Executor(runner, {
+                elements: {
+                    'user-table': {
+                        name: 'user-table',
+                        strategy: { type: 'by-selector', value: '[data-xtest="user-table"]' },
+                        aliases: [],
+                    },
+                    'cell-button': {
+                        name: 'cell-button',
+                        strategy: { type: 'by-selector', value: '[data-xtest="cell-button"]' },
+                        aliases: [],
+                        scope: 'cell',
+                    },
+                },
+                scopes: {
+                    row: { name: 'row', strategy: { type: 'by-selector', value: 'tr[data-row]' } },
+                    cell: { name: 'cell', strategy: { type: 'by-selector', value: 'td[data-cell]' }, parent: 'row' },
+                },
+            });
+            const result = await executor.runFile(ast, TABLE_HTML);
+            await runner.teardown();
+
+            expect(result.passed).toBe(true);
+            expect(result.suites[0]!.scenarios[0]!.passed).toBe(true);
+        });
+    });
+
     it('parses multiple steps inside within', () => {
         const src = `suite S\n  scenario "t"\n    within login-form\n      type "ada" into username-input\n      click submit-button\n      check error-message is absent\n`;
         const step = parseXTest(src).suites[0]!.scenarios[0]!.steps[0] as any;
@@ -34,6 +69,22 @@ describe('Parser — within block', () => {
         expect(steps[1]!.kind).toBe('within');
         expect(steps[2]!.kind).toBe('assert-element');
     });
+
+    it('parses dot-chained scopes with qualifiers', () => {
+        const src = `suite S\n  scenario "t"\n    within user-table.row(2).cell(3)\n      click action-button\n`;
+        const step = parseXTest(src).suites[0]!.scenarios[0]!.steps[0] as any;
+        expect(step.scopes).toEqual([
+            { name: 'row', qualifier: 2 },
+            { name: 'cell', qualifier: 3 },
+        ]);
+    });
+
+    it('parses named filter shortcuts for attr/text', () => {
+        const src = `suite S\n  scenario "t"\n    within user-table.row#id(42).cell@text("Ada")\n      click action-button\n`;
+        const step = parseXTest(src).suites[0]!.scenarios[0]!.steps[0] as any;
+        expect(step.scopes[0]!.filter).toEqual({ target: 'attr', attr: 'id', operator: 'equals', value: '42' });
+        expect(step.scopes[1]!.filter).toEqual({ target: 'text', operator: 'equals', value: 'Ada' });
+    });
 });
 
 // ── Runner tests ──────────────────────────────────────────────────────────────
@@ -47,6 +98,23 @@ const FORM_HTML = `<!DOCTYPE html><html><body>
   <div data-xtest="other-section" id="other">
     <button data-xtest="submit-button" id="other-btn">Other submit</button>
   </div>
+</body></html>`;
+
+const TABLE_HTML = `<!DOCTYPE html><html><body>
+  <table data-xtest="user-table">
+    <tr data-row id="41">
+      <td data-cell>
+        <button data-xtest="cell-button">Edit Bob</button>
+        Bob
+      </td>
+    </tr>
+    <tr data-row id="42">
+      <td data-cell>
+        <button data-xtest="cell-button">Edit Ada</button>
+        Ada
+      </td>
+    </tr>
+  </table>
 </body></html>`;
 
 describe('JSDOMRunner — pushScope / popScope', () => {
@@ -99,12 +167,12 @@ describe('Executor — within step end-to-end', () => {
         const { JSDOMRunner } = await import('../runner/jsdom-runner.js');
 
         const src = `suite S\n  scenario "within"\n    within login-form\n      check username-input is present\n      check submit-button  is present\n`;
-        const ast      = parseXTest(src);
-        const runner   = new JSDOMRunner();
+        const ast = parseXTest(src);
+        const runner = new JSDOMRunner();
         const executor = new Executor(runner, {
             elements: {
-                'login-form':    { name: 'login-form',    strategy: { type: 'by-ref', value: 'login-form'    }, aliases: [] },
-                'username-input':{ name: 'username-input',strategy: { type: 'by-ref', value: 'username'      }, aliases: [] },
+                'login-form': { name: 'login-form', strategy: { type: 'by-ref', value: 'login-form' }, aliases: [] },
+                'username-input': { name: 'username-input', strategy: { type: 'by-ref', value: 'username' }, aliases: [] },
                 'submit-button': { name: 'submit-button', strategy: { type: 'by-ref', value: 'submit-button' }, aliases: [] },
             },
         });
@@ -120,12 +188,12 @@ describe('Executor — within step end-to-end', () => {
         const { JSDOMRunner } = await import('../runner/jsdom-runner.js');
 
         const src = `suite S\n  scenario "label"\n    within login-form\n      check username-input is present\n      click submit-button\n`;
-        const ast      = parseXTest(src);
-        const runner   = new JSDOMRunner();
+        const ast = parseXTest(src);
+        const runner = new JSDOMRunner();
         const executor = new Executor(runner, {
             elements: {
-                'login-form':    { name: 'login-form',    strategy: { type: 'by-ref', value: 'login-form'    }, aliases: [] },
-                'username-input':{ name: 'username-input',strategy: { type: 'by-ref', value: 'username'      }, aliases: [] },
+                'login-form': { name: 'login-form', strategy: { type: 'by-ref', value: 'login-form' }, aliases: [] },
+                'username-input': { name: 'username-input', strategy: { type: 'by-ref', value: 'username' }, aliases: [] },
                 'submit-button': { name: 'submit-button', strategy: { type: 'by-ref', value: 'submit-button' }, aliases: [] },
             },
         });
