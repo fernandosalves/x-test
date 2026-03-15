@@ -34,6 +34,7 @@ export type TokenType =
     | 'LBRACKET'
     | 'RBRACKET'
     | 'EQUAL_SIGN'
+    | 'TILDE_EQUAL'
     | 'INDENT'
     | 'DEDENT'
     | 'NEWLINE'
@@ -222,6 +223,12 @@ export class Lexer {
             if (ch === ']') {
                 this._advance();
                 tokens.push({ type: 'RBRACKET', value: ']', line: startLine, column: startCol });
+                continue;
+            }
+
+            if (ch === '~' && this._src[this._pos + 1] === '=') {
+                this._advance(); this._advance();
+                tokens.push({ type: 'TILDE_EQUAL', value: '~=', line: startLine, column: startCol });
                 continue;
             }
 

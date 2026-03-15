@@ -5,7 +5,7 @@
  * The Executor ties together the Parser, Resolver, and Runner to run a full suite.
  */
 
-import type { XTestFile, SuiteNode, ScenarioNode, Step, ActionStep, ElementRef, WithinStep, LoadComponentStep, ApplyFixtureStep, RegisterSpyStep, ResetSpyStep, AssertSpyStep, SpyCall, TakeScreenshotStep, CheckA11yStep, A11yViolation, MockRequestStep, AssertRequestStep, RequestCall, AwaitFunctionStep } from '../parser/ast.js';
+import type { XTestFile, SuiteNode, ScenarioNode, Step, ActionStep, ElementRef, WithinStep, LoadComponentStep, ApplyFixtureStep, RegisterSpyStep, ResetSpyStep, AssertSpyStep, SpyCall, TakeScreenshotStep, CheckA11yStep, A11yViolation, MockRequestStep, AssertRequestStep, RequestCall, AwaitFunctionStep, ScopeFilter } from '../parser/ast.js';
 import type { SurfaceManifest } from '../manifest/types.js';
 import { Resolver, type ResolutionResult } from '../resolver/resolver.js';
 
@@ -93,7 +93,7 @@ export interface xtestRunner {
     /** Capture a screenshot (no-op in environments that don't support it). */
     screenshot(name?: string): Promise<void>;
     /** Push a scoping root — subsequent selectors are resolved within this element. */
-    pushScope(selector: string, opts?: { index?: number }): Promise<void>;
+    pushScope(selector: string, opts?: { index?: number; filter?: ScopeFilter }): Promise<void>;
     /** Pop the most recently pushed scope. */
     popScope(): Promise<void>;
     /** Tear down the environment. */
@@ -297,8 +297,10 @@ export class Executor {
         await this._runner.pushScope(rootResolved.selector);
         if (step.scopes) {
             for (const scope of step.scopes) {
-                const selector = this._resolver.getScopeSelector(scope.name);
-                await this._runner.pushScope(selector, scope.qualifier ? { index: scope.qualifier } : undefined);
+                const scoped = this._resolver.getScopeSelector(scope.name, scope.filter);
+                const runnerOpts: { index: number; filter?: ScopeFilter } = { index: scope.qualifier ?? 1 };
+                if (scoped.filter && scoped.filter.target === 'text') runnerOpts.filter = scoped.filter;
+                await this._runner.pushScope(scoped.selector, runnerOpts);
             }
         }
         try {

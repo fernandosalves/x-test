@@ -19,7 +19,7 @@ import type {
     TakeScreenshotStep, CheckA11yStep, A11yViolation,
     MockRequestStep, AssertRequestStep, RequestAssertionKind, RequestCall, AwaitFunctionStep,
     AssertElementStep, AssertVariableStep,
-    Loc,
+    Loc, ScopeFilter,
 } from './ast.js';
 
 export class ParseError extends Error {
@@ -503,10 +503,10 @@ export class Parser {
         const loc = this._loc();
         this._expect('WITHIN');
         const root = this._parseElementRef();
-        const scopes: { name: string; qualifier?: number }[] = [];
+        const scopes: { name: string; qualifier: number; filter?: ScopeFilter }[] = [];
         while ((this._at('IDENT') || this._peekAt(0)?.type === 'COLON')) {
             let scopeName: string;
-            if (this._at('IDENT') && this._peekAt(1)?.type === 'COLON') {
+            if (this._at('IDENT')) {
                 scopeName = this._advance().value;
             } else if (this._at('COLON')) {
                 if (root.kind !== 'name') throw new ParseError('Unnamed scope qualifier requires a named root element', this._loc());
@@ -514,11 +514,21 @@ export class Parser {
             } else {
                 break;
             }
-            this._expect('COLON');
-            if (!this._at('NUMBER')) throw new ParseError('Expected numeric scope qualifier after ":"', this._loc());
-            const qualifier = Number(this._advance().value);
-            if (Number.isNaN(qualifier) || qualifier < 1) throw new ParseError('Scope qualifier must be a positive integer', this._loc());
-            scopes.push({ name: scopeName, qualifier });
+
+            let filter: ScopeFilter | undefined;
+            if (this._at('LBRACKET')) {
+                filter = this._parseScopeFilter();
+            }
+
+            let qualifier = 1;
+            if (this._at('COLON')) {
+                this._advance();
+                if (!this._at('NUMBER')) throw new ParseError('Expected numeric scope qualifier after ":"', this._loc());
+                qualifier = Number(this._advance().value);
+                if (Number.isNaN(qualifier) || qualifier < 1) throw new ParseError('Scope qualifier must be a positive integer', this._loc());
+            }
+
+            scopes.push({ name: scopeName, qualifier, ...(filter ? { filter } : {}) });
         }
         this._skipNewlines();
         this._expect('INDENT');
@@ -527,6 +537,34 @@ export class Parser {
         return scopes.length > 0
             ? { kind: 'within', root, scopes, steps, loc }
             : { kind: 'within', root, steps, loc };
+    }
+
+    private _parseScopeFilter(): ScopeFilter {
+        this._expect('LBRACKET');
+        if (!this._at('IDENT')) throw new ParseError('Expected attribute name or "text" inside scope filter', this._loc());
+        const nameToken = this._advance().value;
+        const isText = nameToken.toLowerCase() === 'text';
+        const target: ScopeFilter['target'] = isText ? 'text' : 'attr';
+        const attr = isText ? undefined : nameToken;
+
+        let operator: ScopeFilter['operator'];
+        if (this._at('TILDE_EQUAL')) {
+            operator = 'contains';
+            this._advance();
+        } else if (this._at('EQUAL_SIGN')) {
+            operator = 'equals';
+            this._advance();
+        } else {
+            throw new ParseError('Expected = or ~= in scope filter', this._loc());
+        }
+
+        const value = this._expectString('"filter value"');
+        this._expect('RBRACKET');
+
+        if (target === 'attr' && !attr) throw new ParseError('Attribute filters require a name', this._loc());
+        return target === 'attr'
+            ? { target: 'attr', attr: attr!, operator, value }
+            : { target: 'text', operator, value };
     }
 
     // ── Focus step ────────────────────────────────────────────────────────────

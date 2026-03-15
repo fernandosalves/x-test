@@ -7,7 +7,7 @@
 
 import { JSDOM } from 'jsdom';
 import type { xtestRunner, } from './runner.js';
-import type { SpyCall } from '../parser/ast.js';
+import type { SpyCall, ScopeFilter } from '../parser/ast.js';
 
 export class JSDOMRunner implements xtestRunner {
     private _dom: JSDOM | null = null;
@@ -329,10 +329,10 @@ export class JSDOMRunner implements xtestRunner {
         return root.querySelectorAll(selector).length;
     }
 
-    async pushScope(selector: string, opts?: { index?: number }): Promise<void> {
+    async pushScope(selector: string, opts?: { index?: number; filter?: ScopeFilter }): Promise<void> {
         const index = opts?.index ?? 1;
         if (index < 1) throw new Error('[xtest] Scope qualifier must be >= 1');
-        const root = this._findNth(selector, index);
+        const root = this._findNth(selector, index, opts?.filter);
         this._scopeStack.push(root);
     }
 
@@ -367,14 +367,21 @@ export class JSDOMRunner implements xtestRunner {
         throw new Error(`[xtest] Element not found: "${selector}"${this._scopeStack.length > 0 ? ` within scope` : ''}`);
     }
 
-    private _findNth(selector: string, index: number): Element {
+    private _findNth(selector: string, index: number, filter?: ScopeFilter): Element {
         if (!this._document) throw new Error('[xtest] Runner not mounted — call mount() first');
         const root: Element | Document =
             this._scopeStack.length > 0
                 ? this._scopeStack[this._scopeStack.length - 1]!
                 : this._document;
 
-        const matches = root.querySelectorAll(selector);
+        let matches = Array.from(root.querySelectorAll(selector));
+        if (filter && filter.target === 'text') {
+            matches = matches.filter(el => {
+                const text = (el.textContent ?? '').trim();
+                if (filter.operator === 'equals') return text === filter.value;
+                return text.includes(filter.value);
+            });
+        }
         const target = matches[index - 1];
         if (!target) throw new Error(`[xtest] Scope selector "${selector}" does not have instance #${index}`);
         return target;

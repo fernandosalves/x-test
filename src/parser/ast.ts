@@ -20,6 +20,13 @@ export type ElementRef =
     | { kind: 'quoted'; value: string; loc: Loc }   // "user name input"
     | { kind: 'variable'; value: string; loc: Loc };  // $myEl
 
+export interface ScopeFilter {
+    target: 'attr' | 'text';
+    attr?: string;
+    operator: 'equals' | 'contains';
+    value: string;
+}
+
 // ── Actions ─────────────────────────────────────────────────────────────────────
 
 export type ActionKind =
@@ -218,7 +225,7 @@ export interface TakeScreenshotStep {
 export interface WithinStep {
     kind: 'within';
     root: ElementRef;
-    scopes?: { name: string; qualifier: number }[];
+    scopes?: { name: string; qualifier: number; filter?: ScopeFilter }[];
     steps: Step[];
     loc: Loc;
 }

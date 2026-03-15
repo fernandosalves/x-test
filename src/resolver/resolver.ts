@@ -6,7 +6,7 @@
  * with fuzzy alias fallback.
  */
 
-import type { ElementRef } from '../parser/ast.js';
+import type { ElementRef, ScopeFilter } from '../parser/ast.js';
 import type { SurfaceManifest, SurfaceElement, SurfaceScope } from '../manifest/types.js';
 import {
     strategyToSelector, inferSelector, editDistance, normalise,
@@ -166,13 +166,22 @@ export class Resolver {
         }
     }
 
-    getScopeSelector(name: string): string {
+    getScopeSelector(name: string, filter?: ScopeFilter): { selector: string; filter?: ScopeFilter } {
         const scope = this._scopeCache.get(name);
         if (!scope) throw new Error(`[xtest] Unknown scope "${name}".`);
         const resolved = scope.strategy.type === 'auto'
             ? inferSelector(scope.name)
             : strategyToSelector(scope.strategy);
-        return resolved.selector;
+        if (filter && filter.target === 'attr') {
+            const suffix = filter.operator === 'equals'
+                ? `[${filter.attr}="${filter.value}"]`
+                : `[${filter.attr}*="${filter.value}"]`;
+            return { selector: `${resolved.selector}${suffix}` };
+        }
+        if (filter && filter.target === 'text') {
+            return { selector: resolved.selector, filter };
+        }
+        return { selector: resolved.selector };
     }
 
     private _applyScope(scopeName: string | undefined, selector: string): { selector: string; scopeChain: string[] } {
