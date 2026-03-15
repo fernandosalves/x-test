@@ -10,6 +10,7 @@
 export type TokenType =
     | 'SUITE' | 'SCENARIO' | 'XSCENARIO' | 'XSUITE' | 'ONLY'
     | 'GIVEN' | 'SETUP' | 'TEARDOWN' | 'WITHIN'
+    | 'MACRO'
     | 'BEFORE_EACH' | 'AFTER_EACH'
     | 'TYPE' | 'CLICK' | 'DOUBLE_CLICK' | 'RIGHT_CLICK'
     | 'SELECT' | 'CLEAR' | 'HOVER' | 'SCROLL' | 'WAIT'
@@ -31,6 +32,12 @@ export type TokenType =
     | 'IDENT'
     | 'VARIABLE'
     | 'COLON'
+    | 'DOT'
+    | 'LPAREN'
+    | 'RPAREN'
+    | 'HASH'
+    | 'AT'
+    | 'COMMA'
     | 'LBRACKET'
     | 'RBRACKET'
     | 'EQUAL_SIGN'
@@ -59,6 +66,7 @@ const KEYWORDS: Record<string, TokenType> = {
     setup: 'SETUP',
     teardown: 'TEARDOWN',
     within: 'WITHIN',
+    macro: 'MACRO',
     beforeeach: 'BEFORE_EACH',
     'before-each': 'BEFORE_EACH',
     aftereach: 'AFTER_EACH',
@@ -211,6 +219,42 @@ export class Lexer {
             if (ch === ':') {
                 this._advance();
                 tokens.push({ type: 'COLON', value: ':', line: startLine, column: startCol });
+                continue;
+            }
+
+            if (ch === '.') {
+                this._advance();
+                tokens.push({ type: 'DOT', value: '.', line: startLine, column: startCol });
+                continue;
+            }
+
+            if (ch === '(') {
+                this._advance();
+                tokens.push({ type: 'LPAREN', value: '(', line: startLine, column: startCol });
+                continue;
+            }
+
+            if (ch === ')') {
+                this._advance();
+                tokens.push({ type: 'RPAREN', value: ')', line: startLine, column: startCol });
+                continue;
+            }
+
+            if (ch === '#') {
+                this._advance();
+                tokens.push({ type: 'HASH', value: '#', line: startLine, column: startCol });
+                continue;
+            }
+
+            if (ch === '@') {
+                this._advance();
+                tokens.push({ type: 'AT', value: '@', line: startLine, column: startCol });
+                continue;
+            }
+
+            if (ch === ',') {
+                this._advance();
+                tokens.push({ type: 'COMMA', value: ',', line: startLine, column: startCol });
                 continue;
             }
 

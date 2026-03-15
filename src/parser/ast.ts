@@ -18,7 +18,8 @@ export interface Loc {
 export type ElementRef =
     | { kind: 'name'; value: string; loc: Loc }   // submit-button
     | { kind: 'quoted'; value: string; loc: Loc }   // "user name input"
-    | { kind: 'variable'; value: string; loc: Loc };  // $myEl
+    | { kind: 'variable'; value: string; loc: Loc }   // $myEl runtime variable
+    | { kind: 'macro-param'; value: string; loc: Loc };  // placeholder replaced at macro expansion
 
 export interface ScopeFilter {
     target: 'attr' | 'text';
@@ -230,6 +231,29 @@ export interface WithinStep {
     loc: Loc;
 }
 
+// ── Macros ──────────────────────────────────────────────────────────────────────
+
+export type MacroParamUsage = 'string' | 'element';
+
+export interface MacroDefinition {
+    name: string;
+    params: string[];
+    paramUsage: Record<string, MacroParamUsage>;
+    steps: Step[];
+    loc: Loc;
+}
+
+export type MacroCallArg =
+    | { kind: 'string'; value: string }
+    | { kind: 'element'; value: ElementRef };
+
+export interface MacroCallStep {
+    kind: 'macro-call';
+    name: string;
+    args: MacroCallArg[];
+    loc: Loc;
+}
+
 // ── Union step type ─────────────────────────────────────────────────────────────
 
 export type Step =
@@ -246,7 +270,8 @@ export type Step =
     | CheckA11yStep
     | MockRequestStep
     | AssertRequestStep
-    | AwaitFunctionStep;
+    | AwaitFunctionStep
+    | MacroCallStep;
 
 // ── Scenario ────────────────────────────────────────────────────────────────────
 
@@ -279,5 +304,6 @@ export interface SuiteNode {
 
 export interface XTestFile {
     suites: SuiteNode[];
+    macros?: MacroDefinition[];
     file?: string;
 }

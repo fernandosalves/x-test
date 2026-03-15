@@ -19,8 +19,9 @@ import type {
     TakeScreenshotStep, CheckA11yStep, A11yViolation,
     MockRequestStep, AssertRequestStep, RequestAssertionKind, RequestCall, AwaitFunctionStep,
     AssertElementStep, AssertVariableStep,
-    Loc, ScopeFilter,
+    Loc, ScopeFilter, MacroDefinition, MacroCallStep, MacroParamUsage, MacroCallArg,
 } from './ast.js';
+import { encodeMacroStringParam, decodeMacroStringParam } from './macro-utils.js';
 
 export class ParseError extends Error {
     constructor(message: string, public readonly loc: Loc) {
@@ -28,10 +29,14 @@ export class ParseError extends Error {
     }
 }
 
+type MacroScope = { params: Set<string>; usage: Map<string, MacroParamUsage> };
+
 export class Parser {
     private _tokens: Token[];
     private _pos: number = 0;
     private _file?: string;
+    private _macroDefinitions: Map<string, MacroDefinition> = new Map();
+    private _macroScopes: MacroScope[] = [];
 
     constructor(tokens: Token[], file?: string) {
         this._tokens = tokens;
@@ -40,9 +45,20 @@ export class Parser {
 
     parse(): XTestFile {
         const suites: SuiteNode[] = [];
+        const macros: MacroDefinition[] = [];
+        this._macroDefinitions.clear();
         while (!this._at('EOF')) {
             this._skipNewlines();
             if (this._at('EOF')) break;
+            if (this._at('MACRO')) {
+                const macro = this._parseMacroDefinition();
+                if (this._macroDefinitions.has(macro.name)) {
+                    throw new ParseError(`Macro "${macro.name}" already defined`, this._loc());
+                }
+                this._macroDefinitions.set(macro.name, macro);
+                macros.push(macro);
+                continue;
+            }
             if (this._at('SUITE')) { suites.push(this._parseSuite(false, false)); }
             else if (this._at('XSUITE')) { suites.push(this._parseSuite(true, false)); }
             else if (this._at('ONLY')) {
@@ -53,9 +69,39 @@ export class Parser {
                 this._advance();
             }
         }
-        const result: XTestFile = { suites };
+        this._expandMacrosInSuites(suites);
+        const result: XTestFile = { suites, macros };
         if (this._file !== undefined) result.file = this._file;
         return result;
+    }
+
+    private _parseMacroDefinition(): MacroDefinition {
+        const loc = this._loc();
+        this._expect('MACRO');
+        const name = this._expectIdent('macro name');
+        this._expect('LPAREN');
+        const params: string[] = [];
+        if (!this._at('RPAREN')) {
+            while (true) {
+                const paramTok = this._expect('VARIABLE');
+                params.push(paramTok.value);
+                if (this._at('COMMA')) { this._advance(); continue; }
+                break;
+            }
+        }
+        this._expect('RPAREN');
+        const scope: MacroScope = { params: new Set(params), usage: new Map() };
+        this._macroScopes.push(scope);
+        this._skipNewlines();
+        this._expect('INDENT');
+        const steps = this._parseSteps();
+        this._tryExpect('DEDENT');
+        this._macroScopes.pop();
+        const paramUsage: Record<string, MacroParamUsage> = {};
+        for (const param of params) {
+            paramUsage[param] = scope.usage.get(param) ?? 'string';
+        }
+        return { name, params, paramUsage, steps, loc };
     }
 
     // ── Suite ─────────────────────────────────────────────────────────────────
@@ -184,12 +230,14 @@ export class Parser {
             case 'FILL': return this._parseFillStep();
             case 'TAKE': return this._parseTakeScreenshotStep();
             case 'MOCK': return this._parseMockRequestStep();
-            case 'IDENT':
-                // Handle "double-click" and "right-click" as IDENT tokens
-                if (tok.value.toLowerCase() === 'double-click') return this._parseClickStep('double-click');
-                if (tok.value.toLowerCase() === 'right-click') return this._parseClickStep('right-click');
+            case 'IDENT': {
+                const lower = tok.value.toLowerCase();
+                if (lower === 'double-click') return this._parseClickStep('double-click');
+                if (lower === 'right-click') return this._parseClickStep('right-click');
+                if (this._macroDefinitions.has(tok.value)) return this._parseMacroCall();
                 this._advance();
                 return null;
+            }
             default:
                 this._advance();
                 return null;
@@ -796,6 +844,10 @@ export class Parser {
         }
         if (tok.type === 'VARIABLE') {
             this._advance();
+            if (this._isMacroParam(tok.value)) {
+                this._markMacroParamUsage(tok.value, 'element');
+                return { kind: 'macro-param', value: tok.value, loc };
+            }
             return { kind: 'variable', value: tok.value, loc };
         }
 
@@ -852,10 +904,18 @@ export class Parser {
     }
 
     private _expectString(hint: string): string {
-        if (!this._at('STRING')) {
-            throw new ParseError(`Expected string (${hint}) but got ${this._peek()?.type}`, this._loc());
+        if (this._at('STRING')) {
+            return this._advance().value;
         }
-        return this._advance().value;
+        if (this._at('VARIABLE')) {
+            const tok = this._peek();
+            if (tok && this._isMacroParam(tok.value)) {
+                this._markMacroParamUsage(tok.value, 'string');
+                this._advance();
+                return encodeMacroStringParam(tok.value);
+            }
+        }
+        throw new ParseError(`Expected string (${hint}) but got ${this._peek()?.type}`, this._loc());
     }
 
     private _expectIdent(hint: string): string {
@@ -875,6 +935,123 @@ export class Parser {
         const loc: Loc = { line: tok?.line ?? 0, column: tok?.column ?? 0 };
         if (this._file !== undefined) loc.file = this._file;
         return loc;
+    }
+
+    private _parseMacroCall(): Step {
+        const loc = this._loc();
+        const name = this._advance().value;
+        const def = this._macroDefinitions.get(name);
+        if (!def) throw new ParseError(`Unknown macro "${name}"`, loc);
+        const args: MacroCallArg[] = [];
+        for (const param of def.params) {
+            const usage = def.paramUsage[param] ?? 'string';
+            if (usage === 'element') {
+                const element = this._parseElementRef();
+                args.push({ kind: 'element', value: element });
+            } else {
+                const value = this._expectString('"macro argument"');
+                args.push({ kind: 'string', value });
+            }
+        }
+        return { kind: 'macro-call', name, args, loc } satisfies MacroCallStep;
+    }
+
+    private _expandMacrosInSuites(suites: SuiteNode[]): void {
+        if (this._macroDefinitions.size === 0) return;
+        for (const suite of suites) {
+            suite.setup = this._expandSteps(suite.setup);
+            suite.teardown = this._expandSteps(suite.teardown);
+            suite.beforeEach = this._expandSteps(suite.beforeEach);
+            suite.afterEach = this._expandSteps(suite.afterEach);
+            suite.scenarios = suite.scenarios.map(scenario => ({
+                ...scenario,
+                given: this._expandSteps(scenario.given),
+                steps: this._expandSteps(scenario.steps),
+            }));
+        }
+    }
+
+    private _expandSteps(steps: Step[]): Step[] {
+        const result: Step[] = [];
+        for (const step of steps) {
+            if (step.kind === 'macro-call') {
+                const expanded = this._expandMacroCall(step);
+                result.push(...this._expandSteps(expanded));
+                continue;
+            }
+            result.push(this._expandNestedStep(step));
+        }
+        return result;
+    }
+
+    private _expandNestedStep(step: Step): Step {
+        if (step.kind === 'within') {
+            return { ...step, steps: this._expandSteps(step.steps) };
+        }
+        return step;
+    }
+
+    private _expandMacroCall(step: MacroCallStep): Step[] {
+        const def = this._macroDefinitions.get(step.name);
+        if (!def) throw new ParseError(`Unknown macro "${step.name}"`, step.loc);
+        if (def.params.length !== step.args.length) {
+            throw new ParseError(`Macro "${step.name}" expects ${def.params.length} argument(s) but got ${step.args.length}`, step.loc);
+        }
+        const argMap = new Map<string, MacroCallArg>();
+        def.params.forEach((param, idx) => {
+            argMap.set(param, step.args[idx]!);
+        });
+        return def.steps.map(original => this._cloneWithMacroArgs(original, argMap));
+    }
+
+    private _cloneWithMacroArgs<T>(value: T, args: Map<string, MacroCallArg>): T {
+        if (value === null || value === undefined) return value;
+        if (Array.isArray(value)) {
+            return value.map(item => this._cloneWithMacroArgs(item, args)) as unknown as T;
+        }
+        if (typeof value === 'string') {
+            const param = decodeMacroStringParam(value);
+            if (!param) return value;
+            const arg = args.get(param);
+            if (!arg || arg.kind !== 'string') {
+                throw new ParseError(`Macro parameter $${param} expected a string argument`, this._loc());
+            }
+            return arg.value as unknown as T;
+        }
+        if (typeof value !== 'object') {
+            return value;
+        }
+        const anyValue = value as any;
+        if (anyValue.kind === 'macro-param') {
+            const paramName = anyValue.value as string;
+            const arg = args.get(paramName);
+            if (!arg || arg.kind !== 'element') {
+                throw new ParseError(`Macro parameter $${paramName} expected an element argument`, this._loc());
+            }
+            return this._cloneWithMacroArgs(arg.value, args);
+        }
+        const cloned: any = Array.isArray(value) ? [] : {};
+        for (const [key, val] of Object.entries(anyValue)) {
+            cloned[key] = this._cloneWithMacroArgs(val, args);
+        }
+        return cloned;
+    }
+
+    private _isMacroParam(name: string): boolean {
+        for (let i = this._macroScopes.length - 1; i >= 0; i--) {
+            if (this._macroScopes[i]!.params.has(name)) return true;
+        }
+        return false;
+    }
+
+    private _markMacroParamUsage(name: string, usage: MacroParamUsage): void {
+        const scope = this._macroScopes[this._macroScopes.length - 1];
+        if (!scope || !scope.params.has(name)) return;
+        const existing = scope.usage.get(name);
+        if (existing && existing !== usage) {
+            throw new ParseError(`Macro parameter $${name} used as both ${existing} and ${usage}`, this._loc());
+        }
+        scope.usage.set(name, usage);
     }
 }
 
